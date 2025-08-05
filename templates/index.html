@@ -1,26 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Mood Chatbot</title>
+  <title>Mental Health Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <h1>Welcome to the Mood Chatbot</h1>
-    <textarea id="message" placeholder="Type your message here..."></textarea><br>
-    <button onclick="sendMessage()">Send</button>
-    <p id="response"></p>
-
-    <script>
-        async function sendMessage() {
-            const message = document.getElementById('message').value;
-            const res = await fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
-            });
-            const data = await res.json();
-            document.getElementById('response').innerText = `Mood: ${data.mood}\nResponse: ${data.response}`;
-        }
-    </script>
+  <div class="chat-container">
+    <div class="chat-header">
+      Mental Health Chatbot
+      <img src="{{ url_for('static', filename='images/bear_logo.png') }}" alt="CareBear Logo" />
+    </div>
+    <div class="chat-box" id="chat-box">
+      <div class="message user-message">Lately I feel like everything is pointless.</div>
+      <div class="message bot-message">🧸 That sounds incredibly hard. You’re not alone. I’m here to listen if you’re ready. 🧸 CareBear</div>
+    </div>
+    <div class="chat-input">
+      <input type="text" id="user-input" placeholder="Type a message..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
+
