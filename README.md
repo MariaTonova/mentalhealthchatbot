@@ -1,5 +1,5 @@
 # mentalhealthchatbot
-Flask + Streamlit chatbot that detects mood and responds empathetically. Designed for mental wellness support.
+Flask + Render chatbot that detects mood and responds empathetically. Designed for mental wellness support.
 
 
 Welcome to CareBear — a mood-aware chatbot that doesn't just talk, it listens. Built with Flask, Streamlit, and a whole lot of heart, this project blends natural language cues with logic-driven empathy to provide supportive, emotionally intelligent responses. Whether the user feels joyful, anxious, or somewhere in between, MoodMate adapts its tone and offers thoughtful replies, even flagging messages that may suggest a mental health crisis.
