@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function appendMessage(sender, text, mood = null) {
         const messageDiv = document.createElement("div");
-        messageDiv.classList.add("message", sender);
+        messageDiv.classList.add("message", sender === "user" ? "user" : "bot");
 
         let emoji = "";
         if (mood) {
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
             emoji = moodEmojis[mood] || "";
         }
 
-        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "CareBear"}:</strong> ${text} ${emoji}`;
+        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "Companion"}:</strong> ${text} ${emoji}`;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -31,10 +31,9 @@ document.addEventListener("DOMContentLoaded", function () {
         appendMessage("user", message);
         userInput.value = "";
 
-        // Typing animation
         const typingDiv = document.createElement("div");
-        typingDiv.classList.add("message", "carebear");
-        typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
+        typingDiv.classList.add("message", "bot");
+        typingDiv.innerHTML = `<em>Companion is typing...</em>`;
         chatBox.appendChild(typingDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -46,7 +45,8 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(response => response.json())
         .then(data => {
             chatBox.removeChild(typingDiv);
-            appendMessage("carebear", data.response, data.mood);
+            appendMessage("bot", data.response, data.mood);
         });
     });
 });
+
