@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
             emoji = moodEmojis[mood] || "";
         }
 
-        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "Companion"}:</strong> ${text} ${emoji}`;
+        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "CareBear"}:</strong> ${text} ${emoji}`;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const typingDiv = document.createElement("div");
         typingDiv.classList.add("message", "bot");
-        typingDiv.innerHTML = `<em>Companion is typing...</em>`;
+        typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
         chatBox.appendChild(typingDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
 
