@@ -1,27 +1,52 @@
-function sendMessage() {
-  const input = document.getElementById('user-input');
-  const chatBox = document.getElementById('chat-box');
-  const userText = input.value.trim();
-  if (userText) {
-    const userMsg = document.createElement('div');
-    userMsg.className = 'message user-message';
-    userMsg.textContent = userText;
-    chatBox.appendChild(userMsg);
+document.addEventListener("DOMContentLoaded", function () {
+    const sendBtn = document.getElementById("sendBtn");
+    const userInput = document.getElementById("userInput");
+    const chatBox = document.getElementById("chatBox");
 
-    fetch('/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userText })
-    })
-    .then(res => res.json())
-    .then(data => {
-      const botMsg = document.createElement('div');
-      botMsg.className = 'message bot-message';
-      botMsg.textContent = data.response;
-      chatBox.appendChild(botMsg);
-      chatBox.scrollTop = chatBox.scrollHeight;
+    function appendMessage(sender, text, mood = null) {
+        const messageDiv = document.createElement("div");
+        messageDiv.classList.add("message", sender);
+
+        let emoji = "";
+        if (mood) {
+            const moodEmojis = {
+                happy: "😊",
+                sad: "😔",
+                angry: "😠",
+                neutral: "😐",
+                anxious: "😰"
+            };
+            emoji = moodEmojis[mood] || "";
+        }
+
+        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "CareBear"}:</strong> ${text} ${emoji}`;
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    sendBtn.addEventListener("click", function () {
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        appendMessage("user", message);
+        userInput.value = "";
+
+        // Typing animation
+        const typingDiv = document.createElement("div");
+        typingDiv.classList.add("message", "carebear");
+        typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
+        chatBox.appendChild(typingDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        fetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: message })
+        })
+        .then(response => response.json())
+        .then(data => {
+            chatBox.removeChild(typingDiv);
+            appendMessage("carebear", data.response, data.mood);
+        });
     });
-
-    input.value = '';
-  }
-}
+});
