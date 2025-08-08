@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function appendMessage(sender, text, mood = null) {
         const messageDiv = document.createElement("div");
-        messageDiv.classList.add("message", sender === "user" ? "user" : "bot", "fade-in");
+        messageDiv.classList.add("message", sender === "user" ? "user" : "bot");
 
         let emoji = "";
         if (mood) {
@@ -19,28 +19,24 @@ document.addEventListener("DOMContentLoaded", function () {
             emoji = moodEmojis[mood] || "";
         }
 
-        messageDiv.innerHTML = `<span class="sender">${sender === "user" ? "You" : "CareBear"}:</span> ${text} ${emoji}`;
+        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "CareBear"}:</strong> ${text} ${emoji}`;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function showTyping() {
-        const typingDiv = document.createElement("div");
-        typingDiv.classList.add("message", "bot", "typing");
-        typingDiv.innerHTML = `<span class="dots"></span>`;
-        chatBox.appendChild(typingDiv);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return typingDiv;
-    }
-
-    sendBtn.addEventListener("click", function () {
+    function sendMessage() {
         const message = userInput.value.trim();
         if (!message) return;
 
         appendMessage("user", message);
         userInput.value = "";
 
-        const typingDiv = showTyping();
+        // Typing indicator
+        const typingDiv = document.createElement("div");
+        typingDiv.classList.add("message", "bot");
+        typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
+        chatBox.appendChild(typingDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
 
         fetch("/chat", {
             method: "POST",
@@ -51,6 +47,22 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(data => {
             chatBox.removeChild(typingDiv);
             appendMessage("bot", data.response, data.mood);
+        })
+        .catch(() => {
+            chatBox.removeChild(typingDiv);
+            appendMessage("bot", "Sorry, something went wrong. Please try again.");
         });
+    }
+
+    // Click event on paw button
+    sendBtn.addEventListener("click", sendMessage);
+
+    // Enter key press
+    userInput.addEventListener("keypress", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            sendMessage();
+        }
     });
 });
+
