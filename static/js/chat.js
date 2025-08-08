@@ -1,5 +1,5 @@
-document.getElementById("send-button").addEventListener("click", sendMessage);
-document.getElementById("user-input").addEventListener("keypress", function (e) {
+document.getElementById("send-btn").addEventListener("click", sendMessage);
+document.getElementById("user-input").addEventListener("keypress", function(e) {
     if (e.key === "Enter") sendMessage();
 });
 
@@ -7,22 +7,24 @@ function appendMessage(text, sender, mood = null) {
     const msgDiv = document.createElement("div");
     msgDiv.classList.add("message", sender === "user" ? "user-message" : "bot-message");
 
-    // Mood emoji mapping
-    const moodEmojis = {
-        happy: "😊",
-        sad: "😔",
-        angry: "😠",
-        neutral: "😐",
-        anxious: "😰"
-    };
-    const emoji = mood && moodEmojis[mood] ? ` ${moodEmojis[mood]}` : "";
+    let emoji = "";
+    if (mood) {
+        const moodEmojis = {
+            happy: "😊",
+            sad: "😔",
+            angry: "😠",
+            neutral: "😐",
+            anxious: "😰"
+        };
+        emoji = moodEmojis[mood] || "";
+    }
 
-    msgDiv.innerHTML = `${text}${emoji}`;
-    document.getElementById("chatbot-messages").appendChild(msgDiv);
-    document.getElementById("chatbot-messages").scrollTop = document.getElementById("chatbot-messages").scrollHeight;
+    msgDiv.innerHTML = `${text} ${emoji}`;
+    document.getElementById("chat-messages").appendChild(msgDiv);
+    document.getElementById("chat-messages").scrollTop = document.getElementById("chat-messages").scrollHeight;
 }
 
-async function sendMessage() {
+function sendMessage() {
     const inputField = document.getElementById("user-input");
     const message = inputField.value.trim();
     if (!message) return;
@@ -30,28 +32,24 @@ async function sendMessage() {
     appendMessage(message, "user");
     inputField.value = "";
 
-    // Typing placeholder
     const typingDiv = document.createElement("div");
     typingDiv.classList.add("message", "bot-message");
-    typingDiv.textContent = "CareBear is thinking...";
-    document.getElementById("chatbot-messages").appendChild(typingDiv);
+    typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
+    document.getElementById("chat-messages").appendChild(typingDiv);
 
-    try {
-        const res = await fetch("/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message })
-        });
-
-        const data = await res.json();
-
-        // Remove typing indicator
-        typingDiv.remove();
-
+    fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("chat-messages").removeChild(typingDiv);
         appendMessage(data.response, "bot", data.mood);
-    } catch (error) {
-        typingDiv.remove();
+    })
+    .catch(() => {
+        document.getElementById("chat-messages").removeChild(typingDiv);
         appendMessage("Sorry, something went wrong.", "bot");
-        console.error(error);
-    }
+    });
 }
+
