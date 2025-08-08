@@ -1,6 +1,6 @@
 body {
     font-family: Arial, sans-serif;
-    background: linear-gradient(135deg, #fce4ec, #e3f2fd);
+    background: linear-gradient(to right, #fce4ec, #e0f7fa);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -8,74 +8,72 @@ body {
     margin: 0;
 }
 
-/* Chatbot container */
 .chatbot-container {
-    width: 350px;
-    min-height: 450px;
+    width: 400px;
+    max-width: 90%;
+    background-color: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     overflow: hidden;
 }
 
-/* Chat messages area */
-#chatBox {
-    flex: 1;
-    padding: 15px;
-    overflow-y: auto;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(240, 240, 240, 0.8));
-}
-
-/* Header styling */
 .chatbot-header {
     display: flex;
     align-items: center;
-    padding: 10px 15px;
+    padding: 12px 15px;
     background-color: #d9b48f;
     color: white;
+    height: 70px; /* taller to fit bear */
 }
 
 .chatbot-header img {
-    width: 28px;
-    height: 28px;
-    margin-right: 10px;
+    width: 45px;
+    height: 45px;
+    margin-right: 12px;
 }
 
-.chatbot-title {
-    font-weight: bold;
+.chatbot-title strong {
     font-size: 1.1rem;
 }
 
-.chatbot-subtitle {
+.chatbot-title span {
     font-size: 0.85rem;
     color: white;
 }
 
-/* Input row */
-.chatbot-input {
+.chatbox {
+    flex: 1;
+    padding: 15px;
+    background: #f9f9f9;
+    overflow-y: auto;
+}
+
+.chat-input {
     display: flex;
+    align-items: center;
+    padding: 8px;
     border-top: 1px solid #ddd;
 }
 
-#userInput {
+.chat-input input {
     flex: 1;
     padding: 10px;
     border: none;
     outline: none;
-    font-size: 0.95rem;
+    border-radius: 20px;
+    background: #fff;
 }
 
-/* Paw send button */
-#sendBtn {
+.chat-input button {
     background: none;
     border: none;
+    margin-left: 8px;
     cursor: pointer;
-    padding: 8px;
 }
 
-#sendBtn img {
-    width: 28px;
-    height: 28px;
+.chat-input button img {
+    width: 30px;
+    height: 30px;
 }
