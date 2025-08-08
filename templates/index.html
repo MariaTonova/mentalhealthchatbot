@@ -1,15 +1,17 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>CareBear Mental Health Chatbot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareBear Chatbot</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
             <img src="{{ url_for('static', filename='carebear.png') }}" alt="CareBear" class="logo">
-            <h1>CareBear Chatbot</h1>
+            <h2>CareBear Chatbot</h2>
         </div>
         <div class="chat-box" id="chat-box"></div>
         <div class="chat-input">
@@ -20,29 +22,21 @@
 
     <script>
         async function sendMessage() {
-            const inputField = document.getElementById('user-input');
-            const message = inputField.value.trim();
-            if (!message) return;
+            let userMessage = document.getElementById("user-input").value.trim();
+            if (!userMessage) return;
 
-            addMessage("You", message);
-            inputField.value = "";
+            let chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `<div class="user-message">${userMessage}</div>`;
+            document.getElementById("user-input").value = "";
 
-            const response = await fetch("/chat", {
+            let response = await fetch("/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message })
+                body: JSON.stringify({ message: userMessage })
             });
 
-            const data = await response.json();
-            addMessage("CareBear", data.response);
-        }
-
-        function addMessage(sender, text) {
-            const chatBox = document.getElementById('chat-box');
-            const messageElem = document.createElement("div");
-            messageElem.classList.add("message");
-            messageElem.innerHTML = `<strong>${sender}:</strong> ${text}`;
-            chatBox.appendChild(messageElem);
+            let data = await response.json();
+            chatBox.innerHTML += `<div class="bot-message">${data.response}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
     </script>
