@@ -1,28 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareBear Chatbot</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="chatbot-container">
-        <div class="chatbot-header">
-            <img src="{{ url_for('static', filename='images/bear.png') }}" alt="CareBear Logo" class="bear-logo">
-            <div class="chatbot-title">
-                <div class="title">CareBear Chatbot</div>
-                <div class="subtitle">I'm here to help with your mental health</div>
-            </div>
-        </div>
-        <div class="chatbox" id="chatBox"></div>
-        <div class="chat-input">
-            <input type="text" id="userInput" placeholder="Type your message...">
-            <button id="sendBtn">
-                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send">
-            </button>
+<div class="chatbot-container">
+    <div class="chatbot-header">
+        <img src="static/images/bear.png" alt="CareBear Logo" class="bear-logo">
+        <div class="chatbot-title">
+            <div class="title">CareBear Chatbot</div>
+            <div class="subtitle">I'm here to help with your mental health</div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
-</body>
-</html>
+
+    <div class="chatbot-messages" id="chatbot-messages"></div>
+
+    <div class="chatbot-input-area">
+        <input type="text" id="user-input" placeholder="Type your message...">
+        <button id="send-button">
+            <img src="static/images/paw.png" alt="Send" class="paw-icon">
+        </button>
+    </div>
+</div>
+
