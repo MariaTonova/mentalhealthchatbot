@@ -1,7 +1,6 @@
-/* Background gradient */
 body {
-    background: linear-gradient(135deg, rgba(255, 192, 203, 0.3), rgba(173, 216, 230, 0.3));
     font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #fce4ec, #e3f2fd);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -9,71 +8,55 @@ body {
     margin: 0;
 }
 
-/* Chat container */
-.chat-container {
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    width: 400px;
-    max-width: 90%;
+/* Chatbot container */
+.chatbot-container {
+    width: 350px;
+    min-height: 450px;
     display: flex;
     flex-direction: column;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     overflow: hidden;
 }
 
-/* Header */
-.chat-header {
-    display: flex;
-    align-items: center;
-    background: #d8b48a;
-    padding: 10px;
+/* Chat messages area */
+#chatBox {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(240, 240, 240, 0.8));
 }
 
-.bear-logo {
-    height: 40px;
-    width: 40px;
+/* Header styling */
+.chatbot-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #d9b48f;
+    color: white;
+}
+
+.chatbot-header img {
+    width: 28px;
+    height: 28px;
     margin-right: 10px;
 }
 
-.chat-title h2 {
-    margin: 0;
-    font-size: 1.2em;
+.chatbot-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.chatbot-subtitle {
+    font-size: 0.85rem;
     color: white;
 }
 
-.chat-title p {
-    margin: 0;
-    font-size: 0.85em;
-    color: white;
-}
-
-/* Chat messages */
-.chat-box {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
-    background: rgba(255, 255, 255, 0.8);
-}
-
-.message {
-    margin: 8px 0;
-}
-
-.message.user {
-    text-align: right;
-    color: #555;
-}
-
-.message.bot {
-    text-align: left;
-    color: #333;
-}
-
-/* Input area */
-.chat-input {
+/* Input row */
+.chatbot-input {
     display: flex;
-    border-top: 1px solid #ccc;
-    background: white;
+    border-top: 1px solid #ddd;
 }
 
 #userInput {
@@ -81,17 +64,18 @@ body {
     padding: 10px;
     border: none;
     outline: none;
+    font-size: 0.95rem;
 }
 
-/* Paw button */
-.paw-button {
+/* Paw send button */
+#sendBtn {
     background: none;
     border: none;
-    padding: 5px;
     cursor: pointer;
+    padding: 8px;
 }
 
-.paw-icon {
-    height: 28px;
+#sendBtn img {
     width: 28px;
+    height: 28px;
 }
