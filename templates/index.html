@@ -1,26 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareBear Chatbot</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <img src="{{ url_for('static', filename='images/bear.png') }}" alt="CareBear Logo">
-            <div>
-                <h1>CareBear Chatbot</h1>
-                <p>I'm here to help with your mental health</p>
-            </div>
-        </div>
-        <div class="chat-box" id="chat-box"></div>
-        <div class="chat-input">
-            <input type="text" id="user-input" placeholder="Type your message...">
-            <button id="send-btn">Send</button>
-        </div>
+<div class="chatbot-header">
+    <img src="{{ url_for('static', filename='images/carebear-icon.png') }}" alt="CareBear Logo" class="chatbot-logo">
+    <div class="chatbot-title">
+        <h1>CareBear Chatbot</h1>
+        <p>I'm here to help with your mental health</p>
     </div>
-    <script src="{{ url_for('static', filename='chat.js') }}"></script>
-</body>
-</html>
+</div>
+
+<div id="chatbot-messages"></div>
+
+<div class="chatbot-input">
+    <input type="text" id="user-input" placeholder="Type your message...">
+    <button id="send-button">Send</button>
+</div>
+
