@@ -1,98 +1,89 @@
 body {
-    margin: 0;
     font-family: Arial, sans-serif;
-    background: linear-gradient(to right, #f9e3e7, #d7e6f3);
+    background: linear-gradient(to right, #f8e1e7, #ddeaf0);
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    margin: 0;
 }
 
-.chat-container {
-    background: white;
-    width: 360px;
-    border-radius: 12px;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+.chatbot-container {
+    width: 380px;
+    background-color: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-.chat-header {
+.chatbot-header {
     display: flex;
     align-items: center;
-    padding: 12px;
-    background-color: #E8BFAE;
+    gap: 10px;
+    padding: 15px;
+    background-color: #e6b89c;
 }
 
-.chat-header img {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-right: 12px;
+.chatbot-logo {
+    width: 36px;
+    height: 36px;
 }
 
-.chat-header h1 {
-    font-size: 1.1rem;
-    margin: 0;
+.chatbot-title h1 {
+    font-size: 16px;
     font-weight: bold;
-    color: white;
-}
-
-.chat-header p {
     margin: 0;
-    font-size: 0.85rem;
-    color: white;
-    opacity: 0.9;
 }
 
-.chat-box {
+.chatbot-title p {
+    font-size: 12px;
+    margin: 0;
+}
+
+.chatbot-messages {
     flex: 1;
     padding: 15px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    font-size: 14px;
 }
 
 .message {
-    max-width: 75%;
-    padding: 10px;
-    border-radius: 8px;
-    line-height: 1.4;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    max-width: 80%;
     word-wrap: break-word;
 }
 
 .user-message {
-    background-color: #f9e3e7;
+    background-color: #f8d7da;
     align-self: flex-end;
 }
 
 .bot-message {
-    background-color: #d7e6f3;
+    background-color: #d4edda;
     align-self: flex-start;
 }
 
-.chat-input {
+.chatbot-input {
     display: flex;
     border-top: 1px solid #ddd;
 }
 
-.chat-input input {
+.chatbot-input input {
     flex: 1;
-    padding: 10px;
     border: none;
-    outline: none;
-    font-size: 0.95rem;
+    padding: 12px;
+    font-size: 14px;
 }
 
-.chat-input button {
-    background-color: #E8BFAE;
-    color: white;
+.chatbot-input button {
+    background-color: #e6b89c;
     border: none;
-    padding: 0 15px;
-    cursor: pointer;
-    font-size: 0.95rem;
+    padding: 12px;
+    color: white;
     font-weight: bold;
+    cursor: pointer;
 }
