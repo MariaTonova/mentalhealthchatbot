@@ -14,6 +14,14 @@ body {
   height: 100vh;
 }
 
+/* Wrapper to center the chatbot */
+.chatbot-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
 /* Chatbot container */
 .chatbot-container {
   width: 400px;
