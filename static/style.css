@@ -1,144 +1,98 @@
-/* Reset and base styles */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
 body {
-  background-color: #f5f0e6;
-  font-family: 'Segoe UI', sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to right, #f9e3e7, #d7e6f3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
 }
 
-/* Wrapper to center the chatbot */
-.chatbot-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-}
-
-/* Chatbot container */
-.chatbot-container {
-  width: 400px;
-  max-width: 90%;
-  background-color: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Header */
-.chatbot-header {
-  display: flex;
-  align-items: center;
-  background-color: #8b5e3c;
-  padding: 16px;
-  color: #fff;
-}
-
-.bear-logo {
-  width: 40px;
-  height: 40px;
-  margin-right: 12px;
-}
-
-.chatbot-title .title {
-  font-size: 1.2rem;
-  font-weight: bold;
-}
-
-.chatbot-title .subtitle {
-  font-size: 0.9rem;
-  margin-top: 4px;
-}
-
-/* Messages area */
-.chatbot-messages {
-  flex-grow: 1;
-  padding: 16px;
-  background-color: #fdfdfd;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  scroll-behavior: smooth;
-}
-
-/* Message bubbles */
-.message {
-  padding: 10px 14px;
-  border-radius: 16px;
-  margin-bottom: 12px;
-  max-width: 80%;
-  font-size: 0.95rem;
-  line-height: 1.4;
-}
-
-.message.bot {
-  background-color: #e6d3c2;
-  color: #4b2e2e;
-  align-self: flex-start;
-}
-
-.message.user {
-  background-color: #d8bfd8;
-  color: #fff;
-  align-self: flex-end;
-}
-
-/* Input area */
-.chatbot-input-area {
-  display: flex;
-  padding: 12px;
-  border-top: 1px solid #ddd;
-  background-color: #f0f0f0;
-}
-
-#user-input {
-  flex-grow: 1;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 1rem;
-}
-
-#send-button {
-  background: none;
-  border: none;
-  margin-left: 8px;
-  cursor: pointer;
-}
-
-.paw-icon {
-  width: 28px;
-  height: 28px;
-  transition: transform 0.2s ease;
-}
-
-#send-button:hover .paw-icon {
-  transform: scale(1.1);
-}
-
-/* Responsive tweaks */
-@media (max-width: 480px) {
-  .chatbot-container {
-    width: 100%;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .chatbot-header {
+.chat-container {
+    background: white;
+    width: 360px;
+    border-radius: 12px;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+    display: flex;
     flex-direction: column;
-    align-items: flex-start;
-  }
+    overflow: hidden;
+}
 
-  .bear-logo {
-    margin-bottom: 8px;
-  }
+.chat-header {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background-color: #E8BFAE;
+}
+
+.chat-header img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 12px;
+}
+
+.chat-header h1 {
+    font-size: 1.1rem;
+    margin: 0;
+    font-weight: bold;
+    color: white;
+}
+
+.chat-header p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: white;
+    opacity: 0.9;
+}
+
+.chat-box {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.message {
+    max-width: 75%;
+    padding: 10px;
+    border-radius: 8px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.user-message {
+    background-color: #f9e3e7;
+    align-self: flex-end;
+}
+
+.bot-message {
+    background-color: #d7e6f3;
+    align-self: flex-start;
+}
+
+.chat-input {
+    display: flex;
+    border-top: 1px solid #ddd;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    outline: none;
+    font-size: 0.95rem;
+}
+
+.chat-input button {
+    background-color: #E8BFAE;
+    color: white;
+    border: none;
+    padding: 0 15px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: bold;
 }
