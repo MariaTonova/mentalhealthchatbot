@@ -4,32 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CareBear Chatbot</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="chatbot-container">
-        <!-- Header -->
         <div class="chatbot-header">
-            <img src="/static/images/bear.png" alt="CareBear Logo">
-            <div>
-                <div class="chatbot-title">CareBear Chatbot</div>
-                <div class="chatbot-subtitle">I'm here to help with your mental health</div>
+            <img src="{{ url_for('static', filename='images/bear.png') }}" alt="CareBear Logo">
+            <div class="chatbot-title">
+                <strong>CareBear Chatbot</strong><br>
+                <span>I'm here to help with your mental health</span>
             </div>
         </div>
-
-        <!-- Chat box -->
-        <div id="chatBox"></div>
-
-        <!-- Input row -->
-        <div class="chatbot-input">
+        <div class="chatbox" id="chatBox"></div>
+        <div class="chat-input">
             <input type="text" id="userInput" placeholder="Type your message...">
             <button id="sendBtn">
-                <img src="/static/images/paw.png" alt="Send">
+                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send">
             </button>
         </div>
     </div>
-
-    <script src="/static/js/chat.js"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
 
