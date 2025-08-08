@@ -1,168 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <title>CareBear Mental Health Chatbot</title>
-    <link href="https://fonts.googleapis.com/css?family=Quicksand:400,700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            background: #ffeaf5;
-            font-family: 'Quicksand', Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 430px;
-            margin: 40px auto 0;
-            background: #fff5fa;
-            border-radius: 24px;
-            box-shadow: 0 6px 32px rgba(255,120,220,0.14);
-            padding: 32px 16px 20px 16px;
-            position: relative;
-            min-height: 620px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .header img {
-            width: 85px;
-            margin-bottom: 0px;
-        }
-        .header h2 {
-            color: #e67ab3;
-            margin: 8px 0 0 0;
-            font-size: 2em;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-        }
-        .chat-box {
-            height: 330px;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 1px 6px rgba(230,122,179,0.09);
-            padding: 15px 10px 10px 10px;
-            overflow-y: auto;
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .chat-bubble {
-            max-width: 80%;
-            padding: 11px 18px;
-            border-radius: 18px;
-            font-size: 1.08em;
-            line-height: 1.5;
-            position: relative;
-            margin-bottom: 3px;
-        }
-        .chat-bubble.user {
-            background: #ffb6e1;
-            color: #6d206a;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-        .chat-bubble.bot {
-            background: #fff2f9;
-            color: #d0006b;
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
-        .input-row {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-        }
-        input[type="text"] {
-            flex: 1;
-            padding: 11px;
-            border-radius: 22px;
-            border: 1.5px solid #e6a7cc;
-            font-size: 1em;
-            outline: none;
-            transition: border 0.2s;
-            background: #fff5fa;
-        }
-        input[type="text"]:focus {
-            border: 2px solid #e67ab3;
-        }
-        button {
-            background: #e67ab3;
-            color: #fff;
-            border: none;
-            border-radius: 24px;
-            padding: 11px 25px;
-            font-size: 1.02em;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.18s;
-        }
-        button:hover {
-            background: #d24f9f;
-        }
-        .bear-sticker {
-            position: absolute;
-            left: -30px;
-            bottom: -25px;
-            width: 120px;
-            opacity: 0.95;
-        }
-        @media (max-width: 550px) {
-            .container { max-width: 98vw; min-height: 80vh; }
-            .bear-sticker { display: none; }
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <img src="https://media.tenor.com/XYeBQpYOaVAAAAAC/carebear-pink.gif" alt="CareBear" />
-            <h2>CareBear Chatbot</h2>
+    <div class="chat-container">
+        <div class="chat-header">
+            <img src="{{ url_for('static', filename='carebear.png') }}" alt="CareBear" class="logo">
+            <h1>CareBear Chatbot</h1>
         </div>
-        <div class="chat-box"></div>
-        <div class="input-row">
-            <input id="userInput" type="text" placeholder="Type your message here..." autocomplete="off" />
-            <button id="sendBtn">Send</button>
+        <div class="chat-box" id="chat-box"></div>
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
         </div>
-        <img class="bear-sticker" src="https://pngimg.com/d/care_bears_PNG72.png" alt="CareBear sticker" />
-        <audio id="chime" src="https://cdn.pixabay.com/audio/2022/07/26/audio_124b3fa783.mp3"></audio>
     </div>
+
     <script>
-        const chatBox = document.querySelector('.chat-box');
-        const userInput = document.getElementById('userInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const chime = document.getElementById('chime');
-
-        function appendMessage(sender, text) {
-            const bubble = document.createElement('div');
-            bubble.className = 'chat-bubble ' + sender;
-            bubble.innerHTML = text;
-            chatBox.appendChild(bubble);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
         async function sendMessage() {
-            const message = userInput.value.trim();
+            const inputField = document.getElementById('user-input');
+            const message = inputField.value.trim();
             if (!message) return;
-            appendMessage('user', message);
-            userInput.value = '';
-            chime.play();
 
-            const response = await fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            addMessage("You", message);
+            inputField.value = "";
+
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message })
             });
+
             const data = await response.json();
-            appendMessage('bot', data.response);
+            addMessage("CareBear", data.response);
         }
 
-        sendBtn.onclick = sendMessage;
-        userInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
+        function addMessage(sender, text) {
+            const chatBox = document.getElementById('chat-box');
+            const messageElem = document.createElement("div");
+            messageElem.classList.add("message");
+            messageElem.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            chatBox.appendChild(messageElem);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
     </script>
 </body>
 </html>
-
