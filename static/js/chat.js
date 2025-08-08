@@ -31,7 +31,6 @@ document.addEventListener("DOMContentLoaded", function () {
         appendMessage("user", message);
         userInput.value = "";
 
-        // Typing indicator
         const typingDiv = document.createElement("div");
         typingDiv.classList.add("message", "bot");
         typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
@@ -47,21 +46,11 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(data => {
             chatBox.removeChild(typingDiv);
             appendMessage("bot", data.response, data.mood);
-        })
-        .catch(() => {
-            chatBox.removeChild(typingDiv);
-            appendMessage("bot", "Sorry, something went wrong. Please try again.");
         });
     }
 
-    // Click event on paw button
     sendBtn.addEventListener("click", sendMessage);
-
-    // Enter key press
-    userInput.addEventListener("keypress", function (event) {
-        if (event.key === "Enter") {
-            event.preventDefault();
-            sendMessage();
-        }
+    userInput.addEventListener("keypress", function (e) {
+        if (e.key === "Enter") sendMessage();
     });
 });
