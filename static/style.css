@@ -1,63 +1,67 @@
+/* Background gradient */
 body {
-    margin: 0;
-    padding: 0;
+    background: linear-gradient(135deg, rgba(255, 192, 203, 0.3), rgba(173, 216, 230, 0.3));
     font-family: Arial, sans-serif;
-    background: linear-gradient(135deg, rgba(255, 192, 203, 0.4), rgba(173, 216, 230, 0.4));
-    height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
+    height: 100vh;
+    margin: 0;
 }
 
+/* Chat container */
 .chat-container {
-    width: 350px;
-    background-color: rgba(255, 255, 255, 0.9);
+    background: white;
     border-radius: 15px;
-    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    width: 400px;
+    max-width: 90%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
+/* Header */
 .chat-header {
     display: flex;
     align-items: center;
-    background-color: rgba(222, 184, 135, 0.9);
+    background: #d8b48a;
     padding: 10px;
 }
 
 .bear-logo {
-    width: 40px;
     height: 40px;
+    width: 40px;
     margin-right: 10px;
 }
 
-.chat-header h2 {
+.chat-title h2 {
     margin: 0;
     font-size: 1.2em;
     color: white;
 }
 
-.chat-header p {
+.chat-title p {
     margin: 0;
-    font-size: 0.8em;
+    font-size: 0.85em;
     color: white;
 }
 
+/* Chat messages */
 .chat-box {
     flex: 1;
     padding: 10px;
     overflow-y: auto;
-    background-color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.8);
 }
 
 .message {
-    margin-bottom: 10px;
+    margin: 8px 0;
 }
 
 .message.user {
     text-align: right;
-    color: #333;
+    color: #555;
 }
 
 .message.bot {
@@ -65,28 +69,29 @@ body {
     color: #333;
 }
 
+/* Input area */
 .chat-input {
     display: flex;
-    padding: 10px;
-    background-color: rgba(255, 255, 255, 0.9);
+    border-top: 1px solid #ccc;
+    background: white;
 }
 
 #userInput {
     flex: 1;
-    padding: 8px;
+    padding: 10px;
     border: none;
-    border-radius: 20px;
     outline: none;
 }
 
-#sendBtn {
+/* Paw button */
+.paw-button {
     background: none;
     border: none;
-    margin-left: 8px;
+    padding: 5px;
     cursor: pointer;
 }
 
-#sendBtn img.paw-icon {
-    width: 28px;
+.paw-icon {
     height: 28px;
+    width: 28px;
 }
