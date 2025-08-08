@@ -8,8 +8,7 @@ function appendMessage(content, sender) {
     msgContainer.classList.add("message", sender === "user" ? "user-message" : "bot-message");
     msgContainer.textContent = content;
     document.getElementById("chatbot-messages").appendChild(msgContainer);
-    document.getElementById("chatbot-messages").scrollTop =
-        document.getElementById("chatbot-messages").scrollHeight;
+    document.getElementById("chatbot-messages").scrollTop = document.getElementById("chatbot-messages").scrollHeight;
 }
 
 async function sendMessage() {
@@ -17,42 +16,24 @@ async function sendMessage() {
     const userText = inputField.value.trim();
     if (!userText) return;
 
-    // Add user message
     appendMessage(userText, "user");
     inputField.value = "";
 
-    // Show typing placeholder
     const typingMsg = document.createElement("div");
     typingMsg.classList.add("message", "bot-message");
     typingMsg.textContent = "CareBear is thinking...";
     document.getElementById("chatbot-messages").appendChild(typingMsg);
 
     try {
-        // Call your Flask backend instead of OpenAI directly
-        const res = await fetch("/chat", {
+        const res = await fetch("/get_response", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: userText })
         });
 
         const data = await res.json();
         typingMsg.remove();
-
-        // Show bot response + mood emoji if available
-        let botText = data.response;
-        if (data.mood) {
-            const moodEmojis = {
-                happy: "😊",
-                sad: "😔",
-                angry: "😠",
-                neutral: "😐",
-                anxious: "😰"
-            };
-            botText += ` ${moodEmojis[data.mood] || ""}`;
-        }
-        appendMessage(botText, "bot");
+        appendMessage(data.response, "bot");
 
     } catch (err) {
         typingMsg.remove();
@@ -60,4 +41,3 @@ async function sendMessage() {
         console.error(err);
     }
 }
-
