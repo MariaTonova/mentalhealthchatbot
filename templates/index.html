@@ -9,21 +9,20 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <img src="{{ url_for('static', filename='images/carebear_icon.png') }}" alt="CareBear Logo" class="logo">
+            <img src="{{ url_for('static', filename='images/bear.png') }}" alt="CareBear Logo" class="bear-logo">
             <div>
-                <h1>CareBear Chatbot</h1>
+                <h2>CareBear Chatbot</h2>
                 <p>I'm here to help with your mental health</p>
             </div>
         </div>
-        <div class="chat-box" id="chatBox"></div>
+        <div id="chatBox" class="chat-box"></div>
         <div class="chat-input">
             <input type="text" id="userInput" placeholder="Type your message...">
             <button id="sendBtn">
-                <img src="{{ url_for('static', filename='images/paw_icon.png') }}" alt="Send" class="paw-icon">
+                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send" class="paw-icon">
             </button>
         </div>
     </div>
-
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
