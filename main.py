@@ -6,30 +6,31 @@ import os
 
 app = Flask(__name__)
 
-# Homepage route (renders your CareBear chatbot interface)
 @app.route('/')
 def home():
     return render_template("index.html")
 
-# Chat API route (handles frontend messages)
 @app.route('/chat', methods=['POST'])
 def chat():
     user_message = request.json.get("message", "")
+    print(f"User message received: {user_message}")
+
     mood = get_mood(user_message)
+    print(f"Mood detected: {mood}")
+
     if check_crisis(user_message):
+        print("Crisis detected: True")
+        print("Activating crisis protocol.")
         return jsonify({
-            "response": "🚨 Crisis detected! Please reach out to a professional or call 116 123 (Samaritans)."
+            "response": "🚨 Crisis detected! Please reach out to a professional or call 116 123 (Samaritans).",
+            "mood": mood
         })
+
+    print("Crisis detected: False")
     response = personalize_response(user_message, mood)
     return jsonify({"response": response, "mood": mood})
 
-# NOTE for Render:
-# Do NOT call app.run() here if using gunicorn! (startCommand: gunicorn main:app)
-# Gunicorn will launch the app by importing 'main:app'.
-
-# If you want to also run the app locally (for testing), uncomment this:
 if __name__ == '__main__':
-   port = int(os.environ.get("PORT", 10000))
-   app.run(host="0.0.0.0", port=port)
-
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
