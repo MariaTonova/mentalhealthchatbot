@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function appendMessage(sender, text, mood = null) {
         const messageDiv = document.createElement("div");
-        messageDiv.classList.add("message", sender === "user" ? "user" : "bot");
+        messageDiv.classList.add("message", sender === "user" ? "user" : "bot", "fade-in");
 
         let emoji = "";
         if (mood) {
@@ -19,9 +19,18 @@ document.addEventListener("DOMContentLoaded", function () {
             emoji = moodEmojis[mood] || "";
         }
 
-        messageDiv.innerHTML = `<strong>${sender === "user" ? "You" : "CareBear"}:</strong> ${text} ${emoji}`;
+        messageDiv.innerHTML = `<span class="sender">${sender === "user" ? "You" : "CareBear"}:</span> ${text} ${emoji}`;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function showTyping() {
+        const typingDiv = document.createElement("div");
+        typingDiv.classList.add("message", "bot", "typing");
+        typingDiv.innerHTML = `<span class="dots"></span>`;
+        chatBox.appendChild(typingDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return typingDiv;
     }
 
     sendBtn.addEventListener("click", function () {
@@ -31,11 +40,7 @@ document.addEventListener("DOMContentLoaded", function () {
         appendMessage("user", message);
         userInput.value = "";
 
-        const typingDiv = document.createElement("div");
-        typingDiv.classList.add("message", "bot");
-        typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
-        chatBox.appendChild(typingDiv);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        const typingDiv = showTyping();
 
         fetch("/chat", {
             method: "POST",
@@ -49,4 +54,3 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 });
-
