@@ -1,14 +1,22 @@
+body {
+  margin: 0;
+  background-color: #f5f0e6;
+  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
 .chatbot-container {
   width: 400px;
   max-width: 90%;
-  margin: 40px auto;
-  background-color: #fff;
+  background-color: #ffffff;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-family: 'Segoe UI', sans-serif;
 }
 
 .chatbot-header {
@@ -38,8 +46,29 @@
 .chatbot-messages {
   flex-grow: 1;
   padding: 16px;
-  background-color: #f9f9f9;
+  background-color: #fdfdfd;
   overflow-y: auto;
+}
+
+.message {
+  background-color: #e6d3c2;
+  color: #4b2e2e;
+  padding: 10px 14px;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  max-width: 80%;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.message.bot {
+  align-self: flex-start;
+}
+
+.message.user {
+  background-color: #d8bfd8;
+  color: #fff;
+  align-self: flex-end;
 }
 
 .chatbot-input-area {
@@ -68,3 +97,4 @@
   width: 28px;
   height: 28px;
 }
+
