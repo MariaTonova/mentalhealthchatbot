@@ -9,10 +9,10 @@
 <body>
     <div class="chatbot-container">
         <div class="chatbot-header">
-            <img src="{{ url_for('static', filename='images/bear.png') }}" alt="CareBear Logo">
+            <img src="{{ url_for('static', filename='images/bear.png') }}" alt="CareBear Logo" class="bear-logo">
             <div class="chatbot-title">
-                <strong>CareBear Chatbot</strong><br>
-                <span>I'm here to help with your mental health</span>
+                <div class="title">CareBear Chatbot</div>
+                <div class="subtitle">I'm here to help with your mental health</div>
             </div>
         </div>
         <div class="chatbox" id="chatBox"></div>
@@ -26,4 +26,3 @@
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
-
