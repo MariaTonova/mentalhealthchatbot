@@ -8,7 +8,8 @@ function appendMessage(content, sender) {
     msgContainer.classList.add("message", sender === "user" ? "user-message" : "bot-message");
     msgContainer.textContent = content;
     document.getElementById("chatbot-messages").appendChild(msgContainer);
-    document.getElementById("chatbot-messages").scrollTop = document.getElementById("chatbot-messages").scrollHeight;
+    document.getElementById("chatbot-messages").scrollTop =
+        document.getElementById("chatbot-messages").scrollHeight;
 }
 
 async function sendMessage() {
@@ -16,6 +17,7 @@ async function sendMessage() {
     const userText = inputField.value.trim();
     if (!userText) return;
 
+    // Add user message
     appendMessage(userText, "user");
     inputField.value = "";
 
@@ -25,23 +27,32 @@ async function sendMessage() {
     typingMsg.textContent = "CareBear is thinking...";
     document.getElementById("chatbot-messages").appendChild(typingMsg);
 
-    // GPT-3.5 API call (replace YOUR_API_KEY)
     try {
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        // Call your Flask backend instead of OpenAI directly
+        const res = await fetch("/chat", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer YOUR_API_KEY`
+                "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                model: "gpt-3.5-turbo",
-                messages: [{ role: "system", content: "You are a supportive mental health assistant." }, { role: "user", content: userText }]
-            })
+            body: JSON.stringify({ message: userText })
         });
 
         const data = await res.json();
         typingMsg.remove();
-        appendMessage(data.choices[0].message.content.trim(), "bot");
+
+        // Show bot response + mood emoji if available
+        let botText = data.response;
+        if (data.mood) {
+            const moodEmojis = {
+                happy: "😊",
+                sad: "😔",
+                angry: "😠",
+                neutral: "😐",
+                anxious: "😰"
+            };
+            botText += ` ${moodEmojis[data.mood] || ""}`;
+        }
+        appendMessage(botText, "bot");
 
     } catch (err) {
         typingMsg.remove();
@@ -49,3 +60,4 @@ async function sendMessage() {
         console.error(err);
     }
 }
+
