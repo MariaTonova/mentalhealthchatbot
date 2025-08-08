@@ -22,25 +22,31 @@ body {
 .chatbot-header {
     display: flex;
     align-items: center;
-    padding: 12px 15px;
+    padding: 15px;
     background-color: #d9b48f;
     color: white;
-    height: 70px; /* taller to fit bear */
 }
 
-.chatbot-header img {
-    width: 45px;
-    height: 45px;
+.bear-logo {
+    width: 55px;
+    height: 55px;
     margin-right: 12px;
 }
 
-.chatbot-title strong {
-    font-size: 1.1rem;
+.chatbot-title {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
-.chatbot-title span {
-    font-size: 0.85rem;
-    color: white;
+.chatbot-title .title {
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.chatbot-title .subtitle {
+    font-size: 0.9rem;
+    line-height: 1.2;
 }
 
 .chatbox {
