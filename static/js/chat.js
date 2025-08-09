@@ -1,55 +1,83 @@
-document.getElementById("send-btn").addEventListener("click", sendMessage);
-document.getElementById("user-input").addEventListener("keypress", function(e) {
-    if (e.key === "Enter") sendMessage();
-});
-
-function appendMessage(text, sender, mood = null) {
-    const msgDiv = document.createElement("div");
-    msgDiv.classList.add("message", sender === "user" ? "user-message" : "bot-message");
-
-    let emoji = "";
-    if (mood) {
-        const moodEmojis = {
-            happy: "😊",
-            sad: "😔",
-            angry: "😠",
-            neutral: "😐",
-            anxious: "😰"
-        };
-        emoji = moodEmojis[mood] || "";
-    }
-
-    msgDiv.innerHTML = `${text} ${emoji}`;
-    document.getElementById("chat-messages").appendChild(msgDiv);
-    document.getElementById("chat-messages").scrollTop = document.getElementById("chat-messages").scrollHeight;
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to bottom right, rgba(255, 182, 193, 0.8), rgba(173, 216, 230, 0.8));
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-function sendMessage() {
-    const inputField = document.getElementById("user-input");
-    const message = inputField.value.trim();
-    if (!message) return;
-
-    appendMessage(message, "user");
-    inputField.value = "";
-
-    const typingDiv = document.createElement("div");
-    typingDiv.classList.add("message", "bot-message");
-    typingDiv.innerHTML = `<em>CareBear is typing...</em>`;
-    document.getElementById("chat-messages").appendChild(typingDiv);
-
-    fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-    })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById("chat-messages").removeChild(typingDiv);
-        appendMessage(data.response, "bot", data.mood);
-    })
-    .catch(() => {
-        document.getElementById("chat-messages").removeChild(typingDiv);
-        appendMessage("Sorry, something went wrong.", "bot");
-    });
+.chat-container {
+    width: 400px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
+.chat-header {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255, 192, 203, 0.9);
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.bear-icon {
+    width: 50px;
+    height: 50px;
+    margin-right: 10px;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.message {
+    padding: 8px 12px;
+    border-radius: 15px;
+    margin-bottom: 8px;
+    max-width: 80%;
+}
+
+.user-message {
+    background: rgba(173, 216, 230, 0.6);
+    align-self: flex-end;
+}
+
+.bot-message {
+    background: rgba(255, 182, 193, 0.6);
+    align-self: flex-start;
+}
+
+.chat-input {
+    display: flex;
+    padding: 10px;
+    border-top: 2px solid #f0f0f0;
+}
+
+#user-input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 15px;
+    outline: none;
+}
+
+.paw-btn {
+    background: transparent;
+    border: none;
+    margin-left: 8px;
+    cursor: pointer;
+}
+
+.paw-icon {
+    width: 32px;
+    height: 32px;
+}
