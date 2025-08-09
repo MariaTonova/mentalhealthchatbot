@@ -19,13 +19,12 @@ def chat():
     user_message = request.json.get("message", "")
     print(f"User message received: {user_message}")
 
-    # Detect mood
     mood = get_mood(user_message)
     print(f"Mood detected: {mood}")
 
-    # Crisis detection
     if check_crisis(user_message):
         print("Crisis detected: True")
+        print("Activating crisis protocol.")
         return jsonify({
             "response": "🚨 Crisis detected! Please reach out to a professional or call 116 123 (Samaritans).",
             "mood": mood
@@ -33,10 +32,8 @@ def chat():
 
     print("Crisis detected: False")
 
-    # Get personalized response intro
     personalized_intro = personalize_response(user_message, mood)
 
-    # GPT-3.5 completion
     try:
         gpt_response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -48,8 +45,6 @@ def chat():
             temperature=0.7
         )
         ai_text = gpt_response.choices[0].message.content.strip()
-
-        # Merge personalization + GPT output
         final_response = f"{personalized_intro} {ai_text}"
 
     except Exception as e:
