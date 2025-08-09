@@ -1,7 +1,7 @@
-def personalize_response(text, mood):
+def personalize_response(text: str, mood: str) -> str:
+    # Small, sincere, and warm intro line that adapts to mood.
     if mood == "sad":
-        return "I'm sorry you're feeling down. Would you like to try a grounding technique?"
-    elif mood == "happy":
-        return "That's great to hear! Keep it up!"
-    else:
-        return "I'm here to listen. Tell me more about how you're feeling."
+        return "I’m really sorry it feels heavy right now. "
+    if mood == "happy":
+        return "That’s wonderful to hear. "
+    return "I’m here with you. "
