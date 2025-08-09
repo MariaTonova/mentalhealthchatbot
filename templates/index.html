@@ -1,28 +1,183 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareBear Chatbot</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CareBear Chatbot</title>
+  <style>
+    :root{
+      --bg: #f4f0f6;
+      --card: #ffffff;
+      --tan: #d8a97b;
+      --ink: #0f172a;
+      --muted: #6b7280;
+      --user: #dbeafe;
+      --bot: #f3e6d9;
+      --shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(60% 60% at 20% 10%, #ffffff, var(--bg));
+      color:var(--ink);
+      font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .card{
+      width: 820px;
+      max-width: 94vw;
+      background: var(--card);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display:grid;
+      grid-template-rows: auto 1fr auto;
+      border: 1px solid #f0edea;
+    }
+    .header{
+      background: var(--tan);
+      color: #fff;
+      padding: 16px 20px;
+      display:flex;
+      align-items:center;
+      gap:14px;
+    }
+    .logo{
+      width:48px;height:48px;border-radius:50%;
+      background:#f9efe7;
+      display:grid;place-items:center;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.08);
+      flex:0 0 auto;
+    }
+    .title{
+      display:flex;flex-direction:column;
+    }
+    .title h1{margin:0;font-size:28px}
+    .title p{margin:0;color:#fbfbfbcc}
+    #log{
+      padding: 20px;
+      overflow:auto;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      background: #fff;
+    }
+    .bubble{
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      line-height: 1.45;
+      font-size: 18px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .me{ align-self: flex-end; background: var(--user); border-top-right-radius: 6px; }
+    .bot{ align-self: flex-start; background: var(--bot); border-top-left-radius: 6px; }
+    .footer{
+      background: #fafafa;
+      border-top: 1px solid #eee;
+      padding: 14px;
+    }
+    form{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 8px 12px;
+    }
+    input{
+      border:0; outline:0; flex:1;
+      font-size: 16px;
+      padding: 12px 8px;
+      background: transparent;
+    }
+    button{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:44px;height:44px;border:0;border-radius:12px;cursor:pointer;
+      background: var(--tan); color:#fff;
+    }
+    button:disabled{opacity:.7;cursor:not-allowed}
+    .mood{ font-size: 12px; color: var(--muted); margin: 2px 2px 0 2px; }
+    .sr-only{ position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+  </style>
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <img src="{{ url_for('static', filename='images/carebear.png') }}" alt="CareBear" class="logo">
-            <div>
-                <h2>CareBear Chatbot</h2>
-                <p>I'm here to help with your mental health</p>
-            </div>
-        </div>
-        <div id="chat-messages" class="chat-box"></div>
-        <div class="chat-input">
-            <input id="user-input" type="text" placeholder="Type your message...">
-            <button id="send-btn">
-                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send" class="paw-icon">
-            </button>
-        </div>
-    </div>
-    <script src="{{ url_for('static', filename='chat.js') }}"></script>
+  <main class="card">
+    <header class="header">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <circle cx="8" cy="7" r="3" fill="#d8a97b"/>
+          <circle cx="16" cy="7" r="3" fill="#d8a97b"/>
+          <circle cx="12" cy="12" r="6.5" fill="#fefaf6" stroke="#c08a5f"/>
+          <circle cx="9.5" cy="12" r="1" fill="#3b2b1e"/>
+          <circle cx="14.5" cy="12" r="1" fill="#3b2b1e"/>
+          <path d="M9 15c2 1.6 4 1.6 6 0" stroke="#3b2b1e" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="title">
+        <h1>CareBear Chatbot</h1>
+        <p>I am here to help with your mental health</p>
+      </div>
+    </header>
+
+    <section id="log" aria-live="polite"></section>
+    <div class="mood" id="mood"></div>
+
+    <footer class="footer">
+      <form id="chat" autocomplete="off">
+        <label class="sr-only" for="text">Type your message</label>
+        <input id="text" placeholder="Type your message..." />
+        <button id="send" type="submit" title="Send">➤</button>
+      </form>
+    </footer>
+  </main>
+
+  <script>
+    const form = document.getElementById('chat');
+    const input = document.getElementById('text');
+    const log = document.getElementById('log');
+    const moodEl = document.getElementById('mood');
+    const sendBtn = document.getElementById('send');
+
+    function add(role, text){
+      const b = document.createElement('div');
+      b.className = 'bubble ' + (role === 'me' ? 'me' : 'bot');
+      b.textContent = text;
+      log.appendChild(b);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = input.value.trim();
+      if(!msg) return;
+      add('me', msg);
+      input.value = '';
+      sendBtn.disabled = true;
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+        if (data.mood) moodEl.textContent = 'Detected mood: ' + data.mood;
+        add('bot', data.response || 'Sorry, no response.');
+      } catch (err) {
+        add('bot', 'There was a network or server error.');
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
 </body>
 </html>
+
