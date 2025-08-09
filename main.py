@@ -4,7 +4,7 @@ from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, random
 
-# Optional: only import OpenAI if key exists
+# Get OpenAI API key from environment (set in Render dashboard)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
     import openai
@@ -18,13 +18,13 @@ app = Flask(__name__)
 def home():
     return render_template("index.html")
 
-# Offline fallback replies
+# Offline fallback responses
 def offline_reply(user_message: str, mood: str) -> str:
     tips = [
         "Try a 4-7-8 breath: inhale 4, hold 7, exhale 8.",
-        "A short walk or stretch can help reset.",
+        "A short walk or stretch can help reset your mind.",
         "Write down one small win from today.",
-        "Ground yourself: 5 things you see, 4 touch, 3 hear, 2 smell, 1 taste."
+        "Ground yourself: 5 see, 4 touch, 3 hear, 2 smell, 1 taste."
     ]
     if mood == "sad":
         return "I’m sorry you’re feeling this way. " + random.choice(tips)
@@ -41,6 +41,7 @@ def chat():
 
     mood = get_mood(user_message)
 
+    # Crisis detection first
     if check_crisis(user_message):
         return jsonify({
             "response": "🚨 Crisis detected! Please reach out to a professional or call 116 123 (Samaritans).",
@@ -49,7 +50,7 @@ def chat():
 
     personalized_intro = personalize_response(user_message, mood)
 
-    # Try GPT if available, otherwise offline
+    # Try GPT if available
     if openai:
         try:
             gpt_response = openai.ChatCompletion.create(
