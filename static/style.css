@@ -1,98 +1,54 @@
-body {
-    background: linear-gradient(to bottom right, #f8e7ec, #dbe7f0);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    font-family: Arial, sans-serif;
-}
-
 .chat-container {
-    width: 350px;
-    background: white;
+    background: #fff;
     border-radius: 20px;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    width: 400px; /* wider */
+    min-height: 500px; /* taller */
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-.chat-header {
-    background: #d89a6f;
+.header {
+    background-color: #d49d7a;
     color: white;
+    padding: 15px 20px;
     display: flex;
     align-items: center;
+    gap: 10px;
+}
+
+.messages {
+    flex: 1;
     padding: 15px;
-}
-
-.chat-header img.logo {
-    width: 40px;
-    height: 40px;
-    margin-right: 10px;
-}
-
-.chat-header h2 {
-    margin: 0;
-    font-size: 18px;
-}
-
-.chat-header p {
-    margin: 0;
-    font-size: 12px;
-    opacity: 0.8;
-}
-
-.chat-box {
-    flex: 1;
-    padding: 10px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
 }
 
-.message {
-    max-width: 75%;
-    padding: 8px 12px;
-    border-radius: 15px;
-    margin: 5px 0;
-    line-height: 1.4;
-}
-
-.user-message {
-    background: #cce4ff;
-    align-self: flex-end;
-    border-bottom-right-radius: 5px;
-}
-
-.bot-message {
-    background: #ffe2c6;
-    align-self: flex-start;
-    border-bottom-left-radius: 5px;
-}
-
-.chat-input {
+.input-area {
     display: flex;
     align-items: center;
-    border-top: 1px solid #ddd;
+    padding: 10px;
     background: white;
+    border-top: 1px solid #eee;
 }
 
-.chat-input input {
+.input-area input {
     flex: 1;
-    border: none;
-    padding: 12px;
-    font-size: 14px;
+    padding: 10px 15px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
     outline: none;
 }
 
-.chat-input button {
-    background: #d89a6f;
+.send-btn {
+    background: #d49d7a;
     border: none;
-    padding: 10px;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    margin-left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-}
-
-.paw-icon {
-    width: 20px;
-    height: 20px;
 }
