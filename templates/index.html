@@ -4,15 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CareBear Chatbot</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
+  <!-- Cache-buster added with ?v=5 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=5">
 </head>
 <body>
   <main class="page">
     <section class="chat-card" role="region" aria-label="CareBear Chatbot">
       <header class="chat-header">
         <div class="logo">
-          <!-- PNG bear -->
-          <img src="{{ url_for('static', filename='images/carebear.png') }}?v=2" alt="CareBear" width="44" height="44">
+          <!-- PNG bear with cache-buster -->
+          <img src="{{ url_for('static', filename='images/carebear.png') }}?v=5" alt="CareBear" width="44" height="44">
         </div>
         <div class="title">
           <h1>CareBear Chatbot</h1>
@@ -27,8 +28,8 @@
         <label class="sr-only" for="text">Type your message</label>
         <input id="text" placeholder="Type your message..." />
         <button id="send" type="submit" title="Send" aria-label="Send message">
-          <!-- PNG paw -->
-          <img src="{{ url_for('static', filename='images/paw.png') }}?v=2" alt="" width="26" height="26">
+          <!-- PNG paw with cache-buster -->
+          <img src="{{ url_for('static', filename='images/paw.png') }}?v=5" alt="" width="26" height="26">
         </button>
       </form>
     </section>
@@ -67,14 +68,5 @@
         });
         const data = await res.json();
         if (data.mood) moodEl.textContent = 'Detected mood: ' + data.mood;
-        addBubble('bot', data.response || 'Sorry, no response.');
-      } catch {
-        addBubble('bot', 'There was a network or server error.');
-      } finally {
-        sendBtn.disabled = false;
-        input.focus();
-      }
-    });
-  </script>
-</body>
-</html>
+        addBubble('bot', data.response || 'Sorry, no response.
+
