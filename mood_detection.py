@@ -41,3 +41,4 @@ def get_mood(text: str) -> str:
     if pol >= 0.35:
         return "happy"
     return "neutral"
+
