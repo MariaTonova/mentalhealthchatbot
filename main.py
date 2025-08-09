@@ -5,10 +5,8 @@ from personalization import personalize_response
 import os, sys
 
 app = Flask(__name__)
-# Needed for per-session memory (non-sensitive)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
-# --- OpenAI (optional) ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
     print(f"✅ GPT mode: key detected (len={len(OPENAI_API_KEY)})", flush=True)
@@ -18,7 +16,6 @@ else:
     print("💬 Offline mode: no OPENAI_API_KEY found", flush=True)
     openai = None
 
-# --- Prompts/helpers ---
 def build_system_prompt(last_msg: str | None) -> str:
     base = (
         "You are CareBear, a warm, trauma-informed mental health support bot.\n"
@@ -34,7 +31,6 @@ def build_system_prompt(last_msg: str | None) -> str:
 
 def offline_reply(user_message: str, mood: str, last_msg: str | None) -> str:
     t = (user_message or "").lower()
-
     if any(w in t for w in ["exam", "test", "deadline", "assignment", "study"]):
         tip = "Try a 60-second box breath (inhale 4, hold 4, exhale 4, hold 4), then jot one 5-minute next step."
     elif any(w in t for w in ["sleep", "insomnia", "can't sleep", "cant sleep", "tired", "exhausted"]):
@@ -49,7 +45,6 @@ def offline_reply(user_message: str, mood: str, last_msg: str | None) -> str:
     pre = "I’m really sorry it feels heavy. " if mood == "sad" else ("Love that spark. " if mood == "happy" else "I’m here with you. ")
     follow = " Is this connected to what you shared earlier?" if last_msg and last_msg != user_message else ""
     ask = " What part feels most present right now?" if mood == "sad" else " What’s one tiny thing that might help a little?"
-
     return f"{pre}{tip}{follow}{ask}"
 
 def crisis_payload(mood: str) -> dict:
@@ -63,7 +58,6 @@ def crisis_payload(mood: str) -> dict:
         "mood": mood
     }
 
-# --- Routes ---
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -79,7 +73,7 @@ def chat():
     if not user_message:
         return jsonify({"response": "Please type a message to start.", "mood": "neutral"})
 
-    last_user = session.get("last_user")  # short per-session memory
+    last_user = session.get("last_user")
     mood = get_mood(user_message)
 
     if check_crisis(user_message):
@@ -113,3 +107,4 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
