@@ -4,16 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CareBear Chatbot</title>
-  <!-- Cache-buster added with ?v=5 -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=5">
+  <!-- Cache-buster so changes show immediately -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=6">
 </head>
 <body>
   <main class="page">
     <section class="chat-card" role="region" aria-label="CareBear Chatbot">
       <header class="chat-header">
         <div class="logo">
-          <!-- PNG bear with cache-buster -->
-          <img src="{{ url_for('static', filename='images/carebear.png') }}?v=5" alt="CareBear" width="44" height="44">
+          <img src="{{ url_for('static', filename='images/carebear.png') }}?v=6" alt="CareBear" width="44" height="44">
         </div>
         <div class="title">
           <h1>CareBear Chatbot</h1>
@@ -24,12 +23,18 @@
       <div id="messages" class="messages" aria-live="polite"></div>
       <div id="mood" class="mood"></div>
 
+      <!-- Demo controls -->
+      <div class="chat-controls" style="padding:10px; display:flex; gap:10px; background:#fff;">
+        <button id="btnStart" type="button">Start Session</button>
+        <button id="btnGoal" type="button">Set Goal</button>
+        <button id="btnSummary" type="button">Summary</button>
+      </div>
+
       <form id="chat" class="composer" autocomplete="off">
         <label class="sr-only" for="text">Type your message</label>
         <input id="text" placeholder="Type your message..." />
         <button id="send" type="submit" title="Send" aria-label="Send message">
-          <!-- PNG paw with cache-buster -->
-          <img src="{{ url_for('static', filename='images/paw.png') }}?v=5" alt="" width="26" height="26">
+          <img src="{{ url_for('static', filename='images/paw.png') }}?v=6" alt="" width="26" height="26">
         </button>
       </form>
     </section>
@@ -42,7 +47,7 @@
     const moodEl = document.getElementById('mood');
     const sendBtn = document.getElementById('send');
 
-    // Optional starter bubble like your mock
+    // Optional starter bubble
     addBubble('bot', "Hi there! 🧡 How are you feeling today?");
 
     function addBubble(role, text){
@@ -68,5 +73,47 @@
         });
         const data = await res.json();
         if (data.mood) moodEl.textContent = 'Detected mood: ' + data.mood;
-        addBubble('bot', data.response || 'Sorry, no response.
+        addBubble('bot', data.response || 'Sorry, no response.');
+      } catch {
+        addBubble('bot', 'There was a network or server error.');
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
 
+    // --- Start Session ---
+    document.getElementById('btnStart').addEventListener('click', async () => {
+      const tone = prompt("Tone? (friendly/formal)", "friendly");
+      const memory = confirm("Enable memory for this session?");
+      const res = await fetch('/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ tone: tone || "friendly", memory_opt_in: memory })
+      });
+      const data = await res.json();
+      alert(data.disclosure);
+    });
+
+    // --- Set Goal ---
+    document.getElementById('btnGoal').addEventListener('click', async () => {
+      const goal = prompt("What's your goal?");
+      if (!goal) return;
+      const res = await fetch('/set-goal', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ goal })
+      });
+      const data = await res.json();
+      alert(data.msg || data.error);
+    });
+
+    // --- Session Summary ---
+    document.getElementById('btnSummary').addEventListener('click', async () => {
+      const res = await fetch('/session-summary');
+      const data = await res.json();
+      alert(`Mood trend: ${data.mood_trend}\n\nHighlights:\n${(data.highlights || []).join("\n")}`);
+    });
+  </script>
+</body>
+</html>
