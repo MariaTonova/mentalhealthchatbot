@@ -32,6 +32,11 @@ function sendMessage() {
     appendMessage(message, "user");
     inputField.value = "";
 
+    const typingDiv = document.createElement("div");
+    typingDiv.classList.add("message", "bot-message");
+    typingDiv.innerHTML = "<em>CareBear is thinking...</em>";
+    document.getElementById("chat-messages").appendChild(typingDiv);
+
     fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,9 +44,11 @@ function sendMessage() {
     })
     .then(res => res.json())
     .then(data => {
+        typingDiv.remove();
         appendMessage(data.response, "bot", data.mood);
     })
     .catch(() => {
+        typingDiv.remove();
         appendMessage("Sorry, something went wrong.", "bot");
     });
 }
