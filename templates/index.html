@@ -8,21 +8,20 @@
 </head>
 <body>
     <div class="chat-container">
-        <div class="header">
-            <img src="{{ url_for('static', filename='images/carebear.png') }}" alt="CareBear" class="carebear-img">
+        <div class="chat-header">
+            <img src="{{ url_for('static', filename='images/carebear.png') }}" alt="CareBear" class="bear-icon">
             <h1>CareBear Chat</h1>
         </div>
 
-        <div id="chat-messages" class="chat-box"></div>
+        <div id="chat-messages" class="chat-messages"></div>
 
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off">
-            <button id="send-btn">
-                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send" class="paw-btn">
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="Type your message here..." autocomplete="off">
+            <button id="send-btn" class="paw-btn">
+                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send" class="paw-icon">
             </button>
         </div>
     </div>
-
     <script src="{{ url_for('static', filename='chat.js') }}"></script>
 </body>
 </html>
