@@ -12,7 +12,7 @@ app.secret_key = os.getenv("SECRET_KEY", "dev-secret")  # session cookie signing
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
-    print(f"✅ GPT mode: key detected", flush=True)
+    print("✅ GPT mode: key detected", flush=True)
     import openai
     openai.api_key = OPENAI_API_KEY
 else:
@@ -31,7 +31,7 @@ def sid():
         session["sid"] = str(uuid.uuid4())
     return session["sid"]
 
-# ----------------------- Explainability ("Ask Why") ------------------
+# ----------------------- Explainability content ----------------------
 SUGGESTION_EXPLAINS = {
     "5-4-3-2-1 grounding": "Grounding redirects attention to present-moment senses and can lower arousal (CBT skill).",
     "paced breathing": "Slower, longer exhales stimulate the parasympathetic system so the body can settle.",
@@ -86,12 +86,12 @@ def goal_nudge(this_sid: str) -> str:
     open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
     return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?" if open_goals else ""
 
-# ----------------------- Routes: UI ----------------------------------
+# ----------------------- UI route -----------------------------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
-# ----------------------- Routes: onboarding & prefs ------------------
+# ----------------------- Onboarding & prefs --------------------------
 @app.route("/start", methods=["POST"])
 def start():
     data = request.json or {}
@@ -104,7 +104,7 @@ def start():
     )
     return jsonify({"ok": True, "disclosure": disclosure, "prefs": USER_PREFS[sid()]})
 
-# ----------------------- Routes: explainability ----------------------
+# ----------------------- Explainability ------------------------------
 @app.route("/ask-why", methods=["POST"])
 def ask_why():
     item = (request.json or {}).get("item", "").strip().lower()
@@ -113,7 +113,7 @@ def ask_why():
             return jsonify({"why": v})
     return jsonify({"why": "I suggest skills from CBT/mindfulness that match your mood and recent messages."})
 
-# ----------------------- Routes: goals & summary ---------------------
+# ----------------------- Goals & summary -----------------------------
 @app.route("/set-goal", methods=["POST"])
 def set_goal():
     g = (request.json or {}).get("goal", "").strip()
@@ -130,13 +130,13 @@ def summary():
     bullets = [f"- {n['point']}" for n in notes]
     return jsonify({"mood_trend": trend, "highlights": bullets})
 
-# ----------------------- Routes: crisis resume -----------------------
+# ----------------------- Crisis resume -------------------------------
 @app.route("/resume", methods=["POST"])
 def resume():
     CRISIS_MODE.discard(sid())
     return jsonify({"response": "Thanks for checking back in. How are you feeling right now?"})
 
-# ----------------------- Routes: chat core ---------------------------
+# ----------------------- Chat core ----------------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
     payload = request.get_json(silent=True) or {}
@@ -198,7 +198,7 @@ def chat():
     session["last_user"] = user_message
     return jsonify({"response": text, "mood": mood})
 
-# ----------------------- Dev status route (optional) -----------------
+# ----------------------- Dev status route ----------------------------
 @app.route("/status")
 def status():
     return {"mode": "gpt" if openai else "offline"}
