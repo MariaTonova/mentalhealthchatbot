@@ -8,19 +8,14 @@
 </head>
 <body>
     <div class="chat-container">
-        <!-- Header -->
         <div class="chat-header">
-            <img src="{{ url_for('static', filename='images/carebear.png') }}" alt="CareBear Logo" class="logo">
+            <img src="{{ url_for('static', filename='images/carebear.png') }}" alt="CareBear" class="logo">
             <div>
                 <h2>CareBear Chatbot</h2>
                 <p>I'm here to help with your mental health</p>
             </div>
         </div>
-
-        <!-- Messages -->
         <div id="chat-messages" class="chat-box"></div>
-
-        <!-- Input -->
         <div class="chat-input">
             <input id="user-input" type="text" placeholder="Type your message...">
             <button id="send-btn">
@@ -28,8 +23,6 @@
             </button>
         </div>
     </div>
-
     <script src="{{ url_for('static', filename='chat.js') }}"></script>
 </body>
 </html>
-
