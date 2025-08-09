@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareBear Chatbot</title>
+    <title>CareBear Chat</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script defer src="{{ url_for('static', filename='chat.js') }}"></script>
 </head>
 <body>
     <div class="chat-container">
-        <div class="header">
+        <div class="chat-header">
             <img src="{{ url_for('static', filename='images/carebear.png') }}" alt="CareBear" class="carebear-img">
             <h1>CareBear Chat</h1>
         </div>
-        <div id="chat-messages" class="chat-box"></div>
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="Type your message here..." />
+
+        <div id="chat-messages"></div>
+
+        <div class="chat-input-container">
+            <input id="user-input" type="text" placeholder="Type your message here...">
             <button id="send-btn">
-                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send" class="paw-icon">
+                <img src="{{ url_for('static', filename='images/paw.png') }}" alt="Send" class="paw-btn">
             </button>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='chat.js') }}"></script>
 </body>
 </html>
