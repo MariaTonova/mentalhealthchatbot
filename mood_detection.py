@@ -1,5 +1,6 @@
 from textblob import TextBlob
 import re
+from difflib import get_close_matches
 
 # -----------------------
 # Mood Detection Function
@@ -13,13 +14,28 @@ positive_keywords = [
 
 sad_keywords = [
     "sad", "depressed", "down", "low", "upset", "crying", "tears",
-    "disappointed", "hurt", "broken", "lonely", "empty", "numb"
+    "disappointed", "hurt", "broken", "lonely", "empty", "numb",
+    "unwell", "sick", "ill"
 ]
 
 anxiety_keywords = [
     "anxious", "worried", "nervous", "scared", "panic", "stress",
     "overwhelmed", "fear", "terrified", "tense"
 ]
+
+# Common negative phrases that might indicate sadness
+sad_phrases = [
+    "not feeling well", "not good", "not okay", "feeling bad", 
+    "feel unwell", "feel down", "under the weather"
+]
+
+def fuzzy_match(text, keywords, cutoff=0.85):
+    """Return True if any word in text closely matches a keyword."""
+    words = text.split()
+    for word in words:
+        if get_close_matches(word, keywords, n=1, cutoff=cutoff):
+            return True
+    return False
 
 def get_mood(message: str) -> str:
     """
@@ -29,30 +45,29 @@ def get_mood(message: str) -> str:
     if not message or not message.strip():
         return "neutral"
 
+    message_lower = message.lower().strip()
+
     # Sentiment analysis
     blob = TextBlob(message)
     polarity = blob.sentiment.polarity
-    subjectivity = blob.sentiment.subjectivity
 
-    # Keyword-based emotion detection
-    message_lower = message.lower()
-    emotions = []
+    # Keyword & phrase-based detection
+    if fuzzy_match(message_lower, positive_keywords) or \
+       any(phrase in message_lower for phrase in ["feeling good", "doing great"]):
+        return "happy"
 
-    if any(word in message_lower for word in positive_keywords):
-        emotions.append("positive")
-    if any(word in message_lower for word in sad_keywords):
-        emotions.append("sad")
-    if any(word in message_lower for word in anxiety_keywords):
-        emotions.append("anxious")
+    if fuzzy_match(message_lower, sad_keywords) or \
+       any(phrase in message_lower for phrase in sad_phrases):
+        return "sad"
 
-    # Determine primary mood
-    if polarity < -0.3 or "sad" in emotions:
-        mood = "sad"
-    elif polarity > 0.3 or "positive" in emotions:
-        mood = "happy"
-    elif "anxious" in emotions:
-        mood = "anxious"
+    if fuzzy_match(message_lower, anxiety_keywords):
+        return "anxious"
+
+    # Sentiment fallback
+    if polarity < -0.3:
+        return "sad"
+    elif polarity > 0.3:
+        return "happy"
     else:
-        mood = "neutral"
+        return "neutral"
 
-    return mood
