@@ -5,10 +5,11 @@ from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, sys, uuid
+import random
 
 # ----------------------- App & Optional OpenAI -----------------------
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret")  # session cookie signing
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
@@ -20,13 +21,12 @@ else:
     openai = None
 
 # ----------------------- In-memory demo stores -----------------------
-USER_PREFS = {}                  # {sid: {"tone": "friendly|formal", "memory_opt_in": bool}}
-USER_NOTES = defaultdict(list)   # {sid: [{"ts":..., "mood":..., "point":...}]}
-USER_GOALS = defaultdict(list)   # {sid: [{"goal": str, "done": bool, "ts": ...}]}
-CRISIS_MODE = set()              # {sid}
+USER_PREFS = {}
+USER_NOTES = defaultdict(list)
+USER_GOALS = defaultdict(list)
+CRISIS_MODE = set()
 
 def sid():
-    """Stable per-session id (demo-safe)."""
     if "sid" not in session:
         session["sid"] = str(uuid.uuid4())
     return session["sid"]
@@ -42,31 +42,51 @@ SUGGESTION_EXPLAINS = {
 def build_system_prompt(last_user_msg: str | None) -> str:
     base = (
         "You are CareBear, a warm, trauma-informed mental health support bot.\n"
-        "STYLE: 2–3 short sentences, kind and validating, simple words, soft emojis sparingly 🙂.\n"
-        "DO: Reflect feelings, normalize, then ONE tiny step (5-4-3-2-1 grounding, 30–60s breath, or one small win) "
-        "OR one gentle open question.\n"
-        "AVOID: repeating yourself, long lists, diagnoses, or clinical advice.\n"
-        "If crisis language appears, give a brief crisis message encouraging immediate help."
+        "STYLE: Respond in 2–3 short sentences, using simple, kind words. Use soft emojis sparingly 🙂.\n"
+        "DO: First reflect the user's feelings, then normalize them, and offer ONE gentle step forward "
+        "(like 5-4-3-2-1 grounding, short breathing, or a small positive focus) OR ask a gentle open question.\n"
+        "AVOID: repeating yourself, giving long lists, diagnosing, or using clinical jargon.\n"
+        "Be adaptive — change your language slightly each time so it doesn’t feel scripted.\n"
+        "EXAMPLES OF OPENING LINES FOR SAD MOOD: 'I’m here with you. That sounds tough.', "
+        "'I hear you — you’re not alone in this.', 'I’m here, and I care about what you’re going through.'\n"
+        "EXAMPLES OF OPENING LINES FOR HAPPY MOOD: 'I’m here with you. Love that spark.', "
+        "'That’s wonderful to hear!', 'I’m so glad you’re having a bright moment.'\n"
+        "EXAMPLES OF OPENING LINES FOR NEUTRAL MOOD: 'I’m here with you. Tell me a bit more about what’s on your mind.', "
+        "'I’m here with you. How’s your day been going?', 'I’m here with you. What’s been on your mind today?'\n"
+        "If crisis language appears, respond with a short crisis safety message encouraging immediate help."
     )
     if last_user_msg:
         base += f"\nConversation note: The user previously said: \"{last_user_msg}\"."
     return base
 
 def offline_reply(user_message: str, mood: str, last_msg: str | None) -> str:
-    t = (user_message or "").lower()
-    if any(w in t for w in ["exam", "deadline", "assignment", "study", "test"]):
-        tip = "Try a 60-second box breath (inhale 4, hold 4, exhale 4, hold 4), then jot one 5-minute next step."
-    elif any(w in t for w in ["sleep", "insomnia", "can't sleep", "cant sleep", "tired", "exhausted"]):
-        tip = "Dim the lights and try 4-7-8 breathing for four rounds; keep your phone face-down for 20 min."
-    elif any(w in t for w in ["panic", "anxious", "anxiety", "worry", "worried", "tight chest"]):
-        tip = "Place a hand on your chest, lengthen the exhale, and name 5 things you can see right now."
-    elif any(w in t for w in ["lonely", "alone", "isolated"]):
-        tip = "Consider texting one safe person just to say hi and share one line about how you feel."
+    grounding_variations = [
+        "Let’s try 5-4-3-2-1 grounding: 5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste — breathe slowly.",
+        "Try the 5-4-3-2-1 grounding: notice 5 sights, 4 touches, 3 sounds, 2 scents, and 1 taste. Slow your breath each step.",
+        "Focus on your senses: 5 things to see, 4 to touch, 3 to hear, 2 to smell, 1 to taste — breathing gently."
+    ]
+
+    tips_by_trigger = {
+        "exam": "Try a 60-second box breath (inhale 4, hold 4, exhale 4, hold 4), then jot one small next step.",
+        "sleep": "Dim the lights and try 4-7-8 breathing for four rounds; avoid screens for 20 minutes.",
+        "panic": "Place a hand on your chest, lengthen the exhale, and name 5 things you can see right now.",
+        "lonely": "Consider texting one safe person just to say hi and share how you feel."
+    }
+
+    triggers_found = [k for k in tips_by_trigger if k in user_message.lower()]
+    tip = tips_by_trigger[triggers_found[0]] if triggers_found else random.choice(grounding_variations)
+
+    if mood == "sad":
+        pre = random.choice(["I’m really sorry it feels heavy. ", "That sounds really hard. ", "I hear how tough this is. "])
+        ask = " What part feels most present right now?"
+    elif mood == "happy":
+        pre = random.choice(["Love that spark. ", "That’s wonderful! ", "I’m so glad to hear that. "])
+        ask = " What’s one thing that’s been going well?"
     else:
-        tip = "Try 5-4-3-2-1 grounding: 5 see, 4 touch, 3 hear, 2 smell, 1 taste—slow your exhale as you go."
-    pre = "I’m really sorry it feels heavy. " if mood == "sad" else ("Love that spark. " if mood == "happy" else "I’m here with you. ")
+        pre = random.choice(["I’m here with you. ", "I’m listening. ", "I’m right here. "])
+        ask = " What’s been on your mind most today?"
+
     follow = " Is this connected to what you shared earlier?" if last_msg and last_msg != user_message else ""
-    ask = " What part feels most present right now?" if mood == "sad" else " What’s one tiny thing that might help a little?"
     return f"{pre}{tip}{follow}{ask}"
 
 def maybe_prepend_intro(intro: str, reply: str) -> str:
@@ -86,12 +106,11 @@ def goal_nudge(this_sid: str) -> str:
     open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
     return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?" if open_goals else ""
 
-# ----------------------- UI route -----------------------------------
+# ----------------------- Routes -----------------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
-# ----------------------- Onboarding & prefs --------------------------
 @app.route("/start", methods=["POST"])
 def start():
     data = request.json or {}
@@ -104,7 +123,6 @@ def start():
     )
     return jsonify({"ok": True, "disclosure": disclosure, "prefs": USER_PREFS[sid()]})
 
-# ----------------------- Explainability ------------------------------
 @app.route("/ask-why", methods=["POST"])
 def ask_why():
     item = (request.json or {}).get("item", "").strip().lower()
@@ -113,7 +131,6 @@ def ask_why():
             return jsonify({"why": v})
     return jsonify({"why": "I suggest skills from CBT/mindfulness that match your mood and recent messages."})
 
-# ----------------------- Goals & summary -----------------------------
 @app.route("/set-goal", methods=["POST"])
 def set_goal():
     g = (request.json or {}).get("goal", "").strip()
@@ -130,13 +147,11 @@ def summary():
     bullets = [f"- {n['point']}" for n in notes]
     return jsonify({"mood_trend": trend, "highlights": bullets})
 
-# ----------------------- Crisis resume -------------------------------
 @app.route("/resume", methods=["POST"])
 def resume():
     CRISIS_MODE.discard(sid())
     return jsonify({"response": "Thanks for checking back in. How are you feeling right now?"})
 
-# ----------------------- Chat core ----------------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
     payload = request.get_json(silent=True) or {}
@@ -148,7 +163,6 @@ def chat():
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
     last_user = session.get("last_user")
 
-    # mood + crisis detection
     mood = get_mood(user_message)
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
@@ -156,7 +170,6 @@ def chat():
     if this_sid in CRISIS_MODE:
         return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
 
-    # store brief session notes if memory is on
     if prefs.get("memory_opt_in"):
         USER_NOTES[this_sid].append({
             "ts": datetime.utcnow().isoformat(),
@@ -164,10 +177,8 @@ def chat():
             "point": user_message[:160]
         })
 
-    # personalized intro by mood + tone
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # generate reply (OpenAI optional)
     if openai:
         try:
             gpt = openai.ChatCompletion.create(
@@ -182,28 +193,23 @@ def chat():
                 frequency_penalty=0.2,
             )
             reply = gpt.choices[0].message["content"].strip()
-            text = reply  # no intro prefix in GPT mode to avoid repetition
+            text = reply
         except Exception as e:
             print("❌ OpenAI error:", e, file=sys.stderr, flush=True)
-            fallback = offline_reply(user_message, mood, last_user)
-            text = maybe_prepend_intro(intro, fallback)
+            text = maybe_prepend_intro(intro, offline_reply(user_message, mood, last_user))
     else:
-        fallback = offline_reply(user_message, mood, last_user)
-        text = maybe_prepend_intro(intro, fallback)
+        text = maybe_prepend_intro(intro, offline_reply(user_message, mood, last_user))
 
-    # gentle goal nudge if opted-in memory
     if prefs.get("memory_opt_in"):
         text += goal_nudge(this_sid)
 
     session["last_user"] = user_message
     return jsonify({"response": text, "mood": mood})
 
-# ----------------------- Dev status route ----------------------------
 @app.route("/status")
 def status():
     return {"mode": "gpt" if openai else "offline"}
 
-# ----------------------- Run ----------------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
