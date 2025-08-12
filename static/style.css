@@ -160,5 +160,23 @@ body{
     --bot: #f5e2cf !important;
   }
 }
+/* Smooth fade-in for new messages */
+.bubble {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: fadeInUp 0.35s ease forwards;
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth scroll for chat container */
+.messages {
+  scroll-behavior: smooth;
+}
 
 
