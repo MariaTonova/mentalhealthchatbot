@@ -144,5 +144,21 @@ body{
   .chat-card{ min-height:70vh; width:94vw }
   .bubble{ max-width:90% }
 }
+/* ===== Force Pastel Theme (Disable Dark Mode Override) ===== */
+:root {
+  color-scheme: light; /* Forces browsers to use light mode */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #f5f1f8 !important;
+    --card: #ffffff !important;
+    --tan: #d6a372 !important;
+    --ink: #111827 !important;
+    --muted: #6b7280 !important;
+    --user: #dbeafe !important;
+    --bot: #f5e2cf !important;
+  }
+}
 
 
