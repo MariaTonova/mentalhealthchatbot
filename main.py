@@ -4,11 +4,13 @@ from collections import defaultdict
 from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
-import os, sys, uuid, random, re
+import os, sys, uuid, random
 
+# ----------------------- App -----------------------
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
+# Optional OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
     print("✅ GPT mode: key detected", flush=True)
@@ -18,49 +20,37 @@ else:
     print("💬 Offline mode: no OPENAI_API_KEY found", flush=True)
     openai = None
 
+# ----------------------- Stores -----------------------
 USER_PREFS = {}
 USER_NOTES = defaultdict(list)
 USER_GOALS = defaultdict(list)
 USER_HISTORY = defaultdict(list)
 CRISIS_MODE = set()
 
+# ----------------------- Local Fact Bank -----------------------
+FACTS = {
+    "cbt": "CBT stands for Cognitive Behavioural Therapy — a structured, goal-oriented form of therapy that helps people identify and change unhelpful thinking patterns.",
+    "mindfulness": "Mindfulness means paying attention to the present moment, on purpose and without judgment. It can reduce stress and improve emotional regulation.",
+    "carebear": "CareBear is your warm, supportive mental health companion, designed to listen and respond with empathy.",
+    "leap year": "A leap year occurs every 4 years. The next one is in 2028.",
+}
+
+QUESTION_KEYWORDS = ["what is", "who is", "when is", "where is", "tell me about", "define", "meaning of"]
+
+# ----------------------- Utilities -----------------------
 def sid():
     if "sid" not in session:
         session["sid"] = str(uuid.uuid4())
     return session["sid"]
 
-# Explanations for skills
-SUGGESTION_EXPLAINS = {
-    "5-4-3-2-1 grounding": "Grounding redirects attention to present-moment senses and can lower anxiety.",
-    "paced breathing": "Slower, longer exhales calm the nervous system.",
-    "thought reframing": "Helps find a more balanced way of looking at situations."
-}
-
-# Simple question/answer bank for offline mode
-QA_RESPONSES = {
-    "what is your name": "I’m CareBear 🧸, your friendly wellbeing buddy!",
-    "who are you": "I’m CareBear — here to listen, support, and share gentle tips.",
-    "how are you": "I’m always happy to chat and here to support you 💛",
-    "what can you do": "I can listen, help you reflect on feelings, and share gentle coping strategies.",
-    "are you a human": "Nope — I’m an AI, but I try to be warm and caring."
-}
-
-def detect_question(msg):
-    """Check if the message looks like a question and match to QA bank."""
-    text = msg.lower().strip("?!. ")
-    if text in QA_RESPONSES:
-        return QA_RESPONSES[text]
-    if re.match(r"(what|why|how|who|where|when)\b", text):
-        return "That’s a thoughtful question — tell me a bit more so I can help."
-    return None
-
-def build_system_prompt(last_user_msg: str | None, history: list) -> str:
+def build_system_prompt(last_user_msg, history):
     base = (
         "You are CareBear, a warm, trauma-informed mental health support bot.\n"
-        "Respond like a caring friend, with gentle curiosity and a sprinkle of encouragement.\n"
-        "Ask open questions, reflect feelings, and share ONE short tip if it fits.\n"
-        "Avoid long lists or heavy clinical terms.\n"
-        "If you notice crisis language, give a short crisis safety message."
+        "STYLE: Respond in 2–3 short sentences, using simple, kind words. Use soft emojis sparingly 🙂.\n"
+        "If the user asks a factual question, give a short, accurate answer but keep a compassionate tone.\n"
+        "DO: Reflect feelings, normalize them, and offer ONE gentle next step or ask an open question.\n"
+        "AVOID: repetition, long lists, diagnoses, or clinical jargon.\n"
+        "If crisis language appears, respond with a short crisis safety message encouraging immediate help."
     )
     if history:
         convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
@@ -69,51 +59,52 @@ def build_system_prompt(last_user_msg: str | None, history: list) -> str:
         base += f"\nPrevious message from user: \"{last_user_msg}\"."
     return base
 
-def offline_reply(user_message: str, mood: str, history: list) -> str:
-    q_response = detect_question(user_message)
-    if q_response:
-        return q_response
-
+def offline_reply(user_message, mood, history):
     mood_responses = {
         "sad": [
-            "I hear how heavy this feels. You matter and you’re not alone 💛",
-            "That sounds tough. I’m here with you.",
-            "I can feel the weight in your words — let’s take it one step at a time."
+            "I hear how heavy things feel right now 💛",
+            "That sounds really hard. I’m here with you.",
+            "It’s okay to feel this way. Let’s take it slow."
         ],
         "happy": [
-            "That’s lovely to hear! 🌟",
+            "That’s wonderful to hear! 🌟",
             "I’m so glad you’re feeling this way!",
             "That’s a bright moment worth holding onto."
         ],
         "anxious": [
-            "I can sense the worry. Let’s pause and take a slow breath together.",
-            "That sounds overwhelming — want to try grounding?",
+            "I can sense the worry in your words. Let’s slow things down together.",
+            "That sounds overwhelming. Want to try a grounding exercise?",
             "Anxiety can feel intense. I’m here to help you find calm."
         ],
         "neutral": [
-            "I’m here and listening — what’s been on your mind?",
-            "How’s your day going so far?",
-            "What’s been keeping your thoughts busy today?"
+            "I’m here with you. Tell me more about what’s been on your mind.",
+            "How’s your day been going so far?",
+            "What’s been occupying your thoughts lately?"
         ]
     }
-    grounding_tip = " You could try 5-4-3-2-1 grounding: notice 5 things you see, 4 touch, 3 hear, 2 smell, 1 taste."
     reply = random.choice(mood_responses.get(mood, mood_responses["neutral"]))
-    return reply + grounding_tip
+    return reply
 
-def crisis_message() -> str:
+def crisis_message():
     return (
         "I’m really sorry you’re feeling this way. Your safety matters so much. "
-        "If you’re in danger, please call emergency services 📞\n"
+        "If you’re in danger, please call emergency services. 📞\n"
         "🇬🇧 Samaritans: 116 123 (free, 24/7)\n"
         "🌍 Crisis Text Line: Text HOME to 741741\n"
-        "🆘 Emergency Services: 999 (UK)\n"
-        "If you feel safe, I’m here to listen."
+        "🆘 Emergency Services: 999 (UK)"
     )
 
-def goal_nudge(this_sid: str) -> str:
-    open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
-    return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?" if open_goals else ""
+def is_question(message):
+    msg = message.lower().strip()
+    return any(q in msg for q in QUESTION_KEYWORDS)
 
+def answer_question(message):
+    for key, value in FACTS.items():
+        if key in message.lower():
+            return value + " I hope that helps 💛"
+    return "Hmm, I’m not completely sure, but I can help you look it up if you’d like 💡"
+
+# ----------------------- Routes -----------------------
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -129,35 +120,6 @@ def start():
     )
     return jsonify({"ok": True, "disclosure": disclosure, "prefs": USER_PREFS[sid()]})
 
-@app.route("/ask-why", methods=["POST"])
-def ask_why():
-    item = (request.json or {}).get("item", "").strip().lower()
-    for k, v in SUGGESTION_EXPLAINS.items():
-        if k.lower() in item:
-            return jsonify({"why": v})
-    return jsonify({"why": "I suggest skills from CBT/mindfulness that match your mood and recent messages."})
-
-@app.route("/set-goal", methods=["POST"])
-def set_goal():
-    g = (request.json or {}).get("goal", "").strip()
-    if not g:
-        return jsonify({"ok": False, "error": "empty"})
-    USER_GOALS[sid()].append({"goal": g, "done": False, "ts": datetime.utcnow().isoformat()})
-    return jsonify({"ok": True, "msg": "Got it — I’ll check in next time."})
-
-@app.route("/session-summary", methods=["GET"])
-def summary():
-    notes = USER_NOTES.get(sid(), [])[-6:]
-    moods = [n["mood"] for n in notes]
-    trend = " → ".join(moods) if moods else "n/a"
-    bullets = [f"- {n['point']}" for n in notes]
-    return jsonify({"mood_trend": trend, "highlights": bullets})
-
-@app.route("/resume", methods=["POST"])
-def resume():
-    CRISIS_MODE.discard(sid())
-    return jsonify({"response": "Thanks for checking back in. How are you feeling now?"})
-
 @app.route("/chat", methods=["POST"])
 def chat():
     payload = request.get_json(silent=True) or {}
@@ -169,6 +131,7 @@ def chat():
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
     last_user = session.get("last_user")
 
+    # Mood + crisis detection
     mood = get_mood(user_message)
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
@@ -176,18 +139,33 @@ def chat():
     if this_sid in CRISIS_MODE:
         return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
 
+    # Store conversation
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
     USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
 
-    if prefs.get("memory_opt_in"):
-        USER_NOTES[this_sid].append({
-            "ts": datetime.utcnow().isoformat(),
-            "mood": mood,
-            "point": user_message[:160]
-        })
+    # Handle factual Q&A
+    if is_question(user_message):
+        if openai:
+            try:
+                gpt = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": build_system_prompt(last_user, USER_HISTORY[this_sid])},
+                        *USER_HISTORY[this_sid]
+                    ],
+                    temperature=0.6,
+                    max_tokens=150
+                )
+                reply = gpt.choices[0].message["content"].strip()
+            except:
+                reply = answer_question(user_message)
+        else:
+            reply = answer_question(user_message)
 
-    intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
+        USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
+        return jsonify({"response": reply, "mood": mood})
 
+    # Otherwise normal supportive chat
     if openai:
         try:
             gpt = openai.ChatCompletion.create(
@@ -196,29 +174,19 @@ def chat():
                     {"role": "system", "content": build_system_prompt(last_user, USER_HISTORY[this_sid])},
                     *USER_HISTORY[this_sid]
                 ],
-                temperature=0.65,
+                temperature=0.7,
                 max_tokens=180
             )
             reply = gpt.choices[0].message["content"].strip()
-            text = reply
-            USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
         except Exception as e:
             print("❌ OpenAI error:", e, file=sys.stderr, flush=True)
-            text = offline_reply(user_message, mood, USER_HISTORY[this_sid])
-            USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
+            reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
     else:
-        text = offline_reply(user_message, mood, USER_HISTORY[this_sid])
-        USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
+        reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
 
-    if prefs.get("memory_opt_in"):
-        text += goal_nudge(this_sid)
-
+    USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
-    return jsonify({"response": text, "mood": mood})
-
-@app.route("/status")
-def status():
-    return {"mode": "gpt" if openai else "offline"}
+    return jsonify({"response": reply, "mood": mood})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
