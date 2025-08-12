@@ -4,10 +4,9 @@ from collections import defaultdict
 from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
-from cbt_responses import get_cbt_response  # NEW
 import os, sys, uuid, random
 
-# ----------------------- App & Optional OpenAI -----------------------
+# ----------------------- App Setup -----------------------
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
@@ -20,9 +19,7 @@ else:
     print("💬 Offline mode: no OPENAI_API_KEY found", flush=True)
     openai = None
 
-MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")  # future fine-tuned model name
-
-# ----------------------- In-memory demo stores -----------------------
+# ----------------------- Data Stores -----------------------
 USER_PREFS = {}
 USER_NOTES = defaultdict(list)
 USER_GOALS = defaultdict(list)
@@ -34,21 +31,65 @@ def sid():
         session["sid"] = str(uuid.uuid4())
     return session["sid"]
 
-# ----------------------- Tone Modulation ----------------------
-tone_templates = {
-    "sad": "Use a gentle, empathetic tone. Avoid sounding overly cheerful.",
-    "anxious": "Respond calmly and reassuringly. Offer grounding techniques where appropriate.",
-    "neutral": "Respond in a supportive and friendly tone.",
-    "happy": "Respond in an encouraging and celebratory tone."
+# ----------------------- Explainability -----------------------
+SUGGESTION_EXPLAINS = {
+    "5-4-3-2-1 grounding": "Grounding redirects attention to present-moment senses and can lower arousal (CBT skill).",
+    "paced breathing": "Slower, longer exhales stimulate the parasympathetic system so the body can settle.",
+    "thought reframing": "CBT reframing examines evidence for/against a thought and finds a more balanced view."
 }
 
-def get_tone_instruction(mood):
-    return tone_templates.get(mood, tone_templates["neutral"])
+# ----------------------- Helpers -----------------------
+def build_system_prompt(last_user_msg: str | None, history: list) -> str:
+    base = (
+        "You are CareBear, a warm and friendly chatbot that can both offer emotional support "
+        "and engage in everyday conversation.\n"
+        "STYLE: Respond in 2–4 short sentences, with a natural and conversational flow. "
+        "Use a warm and empathetic tone when the user seems upset, but feel free to be light and casual "
+        "when they are in a positive or neutral mood.\n"
+        "GOAL: Balance listening, reflecting feelings, and keeping the conversation going naturally. "
+        "Avoid sounding repetitive or scripted. Use emojis only if they fit naturally."
+    )
+    if history:
+        convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
+        base += f"\nConversation so far:\n{convo}"
+    elif last_user_msg:
+        base += f"\nPrevious message from user: \"{last_user_msg}\"."
+    return base
 
-# ----------------------- Explainability store ----------------------
-LAST_RATIONALES = {}
+def offline_reply(user_message: str, mood: str, history: list, memory_enabled=False, notes=None) -> str:
+    """Generate natural, mood-aware replies when GPT is unavailable."""
+    mood_responses = {
+        "sad": [
+            "I hear you. That sounds tough. What’s been going on lately?",
+            "It sounds like you’ve been having a rough time. Want to share more?",
+            "That’s not easy. I’m here to listen — tell me a bit more."
+        ],
+        "happy": [
+            "That’s great to hear! What’s been making you feel this way?",
+            "Love hearing that! Any special moments recently?",
+            "That’s wonderful! What’s been going well?"
+        ],
+        "anxious": [
+            "I can sense some worry there. What’s been on your mind?",
+            "Sounds like you’ve got a lot on your plate. Want to talk it through?",
+            "That sounds stressful. What’s the biggest thing weighing on you?"
+        ],
+        "neutral": [
+            "Gotcha. How’s your day been so far?",
+            "I hear you. What’s been keeping you busy?",
+            "Fair enough. What’s on your mind right now?"
+        ]
+    }
 
-# ----------------------- Crisis message -----------------------
+    reply = random.choice(mood_responses.get(mood, mood_responses["neutral"]))
+
+    if memory_enabled and notes:
+        if random.random() < 0.3:  # 30% chance to recall past topic
+            past_note = random.choice(notes)
+            reply += f" Earlier you mentioned '{past_note['point']}'. How’s that going?"
+
+    return reply
+
 def crisis_message() -> str:
     return (
         "I’m really sorry you’re feeling this way. Your safety matters so much. "
@@ -59,7 +100,6 @@ def crisis_message() -> str:
         "If you feel safe, we can talk more — but please make sure you’re supported right now."
     )
 
-# ----------------------- Goal nudge -----------------------
 def goal_nudge(this_sid: str) -> str:
     open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
     return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?" if open_goals else ""
@@ -83,9 +123,10 @@ def start():
 
 @app.route("/ask-why", methods=["POST"])
 def ask_why():
-    last_reason = LAST_RATIONALES.get(sid())
-    if last_reason:
-        return jsonify({"why": last_reason})
+    item = (request.json or {}).get("item", "").strip().lower()
+    for k, v in SUGGESTION_EXPLAINS.items():
+        if k.lower() in item:
+            return jsonify({"why": v})
     return jsonify({"why": "I suggest skills from CBT/mindfulness that match your mood and recent messages."})
 
 @app.route("/set-goal", methods=["POST"])
@@ -118,9 +159,11 @@ def chat():
 
     this_sid = sid()
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
+    last_user = session.get("last_user")
 
-    # Mood + crisis detection
     mood = get_mood(user_message)
+
+    # Crisis detection
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
         return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
@@ -139,17 +182,14 @@ def chat():
             "point": user_message[:160]
         })
 
-    # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # GPT Mode
     if openai:
         try:
-            tone_instruction = get_tone_instruction(mood)
             gpt = openai.ChatCompletion.create(
-                model=MODEL_NAME,
+                model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": f"You are CareBear, a trauma-informed mental health support bot. {tone_instruction}"},
+                    {"role": "system", "content": build_system_prompt(last_user, USER_HISTORY[this_sid])},
                     *USER_HISTORY[this_sid]
                 ],
                 temperature=0.6,
@@ -158,26 +198,21 @@ def chat():
             reply = gpt.choices[0].message["content"].strip()
             text = reply
             USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
-
-            # Save rationale placeholder for Ask Why
-            LAST_RATIONALES[this_sid] = f"This advice was chosen to match your current mood ({mood}) and encourage emotional regulation."
         except Exception as e:
             print("❌ OpenAI error:", e, file=sys.stderr, flush=True)
-            cbt_reply = get_cbt_response(mood)
-            text = cbt_reply["message"]
-            LAST_RATIONALES[this_sid] = cbt_reply["reason"]
+            text = offline_reply(user_message, mood, USER_HISTORY[this_sid],
+                                 prefs.get("memory_opt_in"), USER_NOTES.get(this_sid, []))
             USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
     else:
-        cbt_reply = get_cbt_response(mood)
-        text = cbt_reply["message"]
-        LAST_RATIONALES[this_sid] = cbt_reply["reason"]
+        text = offline_reply(user_message, mood, USER_HISTORY[this_sid],
+                             prefs.get("memory_opt_in"), USER_NOTES.get(this_sid, []))
         USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
 
-    # Goal nudge
     if prefs.get("memory_opt_in"):
         text += goal_nudge(this_sid)
 
-    return jsonify({"response": intro + " " + text, "mood": mood})
+    session["last_user"] = user_message
+    return jsonify({"response": text, "mood": mood})
 
 @app.route("/status")
 def status():
