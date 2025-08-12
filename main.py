@@ -38,60 +38,61 @@ SUGGESTION_EXPLAINS = {
     "thought reframing": "CBT reframing examines evidence for/against a thought and finds a more balanced view."
 }
 
-# ----------------------- GPT Prompt Builder --------------------------
+# ----------------------- Helpers ----------------------------
 def build_system_prompt(last_user_msg: str | None, history: list) -> str:
     base = (
-        "You are CareBear, a warm, compassionate mental health support companion.\n"
-        "STYLE: Speak like a friendly, supportive friend with gentle curiosity. Use short to medium sentences and natural flow.\n"
-        "TONE: Empathetic, encouraging, and validating. Use warm emojis sparingly to convey care (🌸, 💛, 🙂).\n"
-        "CONTENT: Always acknowledge what the user said, reflect their feelings, and either ask a relevant open question "
-        "or offer a small, practical suggestion (e.g., grounding, breathing, gratitude reflection).\n"
-        "AVOID: repeating the exact same phrases, clinical jargon, overly formal tone, or giving diagnoses.\n"
-        "GOAL: Help the user feel heard, safe, and understood while encouraging small, positive steps.\n"
-        "If the user expresses crisis language, respond with a short, direct crisis safety message first, then offer to listen if they feel safe.\n"
+        "You are CareBear, a warm, trauma-informed mental health support bot.\n"
+        "STYLE: Respond in 1–3 short sentences, using a gentle, human-like tone.\n"
+        "DO: Start with a short empathetic acknowledgment (e.g., 'I hear you.'), "
+        "then respond in a compassionate way and ask a simple follow-up question to keep the conversation flowing.\n"
+        "Only offer coping strategies when the user is sad, anxious, or distressed.\n"
+        "AVOID: long lists, repetition, overuse of emojis, or clinical jargon.\n"
+        "If crisis language appears, respond with a short crisis safety message encouraging immediate help."
     )
     if history:
-        convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-6:]])
+        convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
         base += f"\nConversation so far:\n{convo}"
     elif last_user_msg:
         base += f"\nPrevious message from user: \"{last_user_msg}\"."
     return base
 
-# ----------------------- Offline Fallback ----------------------------
 def offline_reply(user_message: str, mood: str, history: list) -> str:
-    mood_responses = {
+    """Warm, human-like fallback when GPT isn't available."""
+    tone_responses = {
         "sad": [
-            "I hear how heavy things feel right now 💛. Want to share what’s been weighing on you?",
-            "That sounds tough — I’m here to listen, no rush 💕. What’s been on your mind?",
-            "It’s okay to feel this way. We can take it one step at a time together 🌸.",
-            "I’m here with you. Sometimes just talking it out can help a little — want to try?"
+            "I’m really sorry you’re feeling this way. What’s been on your mind?",
+            "That sounds tough — I’m here with you. Do you want to talk about it?",
+            "I hear you, and I care. Can you share a little more?"
         ],
         "happy": [
-            "That’s wonderful to hear 🌟. What’s been making you feel this way?",
-            "I’m glad you’re feeling good — let’s make the most of it 💫. Anything exciting ahead?",
-            "That’s a bright spot worth holding onto 🌸. What’s one thing you’re grateful for today?",
-            "It’s lovely hearing this from you! What’s been going well lately?"
+            "That’s wonderful to hear! What’s been going so well?",
+            "I’m glad to hear that! What’s been the highlight of your day?",
+            "That’s lovely — tell me more about it."
         ],
         "anxious": [
-            "It sounds like you’ve been feeling tense 😌. Want to try a calming exercise together?",
-            "That’s a lot to carry — would you like a grounding tip that might help?",
-            "I hear the worry in your words. Let’s take a deep breath first 🌿. What’s been on your mind?",
-            "Anxiety can be overwhelming — but you don’t have to face it alone. What’s the biggest thought right now?"
+            "That sounds stressful. Want to tell me more about what’s worrying you?",
+            "I hear that — it can feel overwhelming. What’s on your mind right now?",
+            "That sounds intense. Do you want to unpack it together?"
         ],
         "neutral": [
-            "I’m here with you. What’s been on your mind lately?",
             "How’s your day been going so far?",
-            "What’s one thing that’s been important to you today?",
-            "What’s been keeping you busy recently?"
+            "What’s been on your mind today?",
+            "Anything in particular you feel like talking about?"
         ]
     }
-    grounding_tip = " Try 5-4-3-2-1 grounding: notice 5 things you see, 4 you touch, 3 you hear, 2 you smell, and 1 you taste."
-    reply = random.choice(mood_responses.get(mood, mood_responses["neutral"]))
-    if history and history[-1]["role"] == "user" and history[-1]["content"] != user_message:
-        reply += " Is this connected to what you shared earlier?"
-    return reply + grounding_tip
 
-# ----------------------- Crisis Response -----------------------------
+    reply = random.choice(tone_responses.get(mood, tone_responses["neutral"]))
+
+    # If mood is low, softly offer a coping skill
+    if mood in ["sad", "anxious"] and random.random() < 0.4:
+        reply += " If you’d like, we could try something simple together, like paced breathing."
+
+    # Reference earlier chat naturally
+    if history and history[-1]["role"] == "user" and history[-1]["content"] != user_message:
+        reply += " And about what you mentioned earlier — how are you feeling about that now?"
+
+    return reply
+
 def crisis_message() -> str:
     return (
         "I’m really sorry you’re feeling this way. Your safety matters so much. "
@@ -163,6 +164,7 @@ def chat():
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
     last_user = session.get("last_user")
 
+    # Mood + crisis detection
     mood = get_mood(user_message)
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
@@ -170,9 +172,11 @@ def chat():
     if this_sid in CRISIS_MODE:
         return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
 
+    # Store history
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
     USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
 
+    # Store notes if memory is on
     if prefs.get("memory_opt_in"):
         USER_NOTES[this_sid].append({
             "ts": datetime.utcnow().isoformat(),
@@ -180,8 +184,10 @@ def chat():
             "point": user_message[:160]
         })
 
+    # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
+    # GPT Mode
     if openai:
         try:
             gpt = openai.ChatCompletion.create(
@@ -190,7 +196,7 @@ def chat():
                     {"role": "system", "content": build_system_prompt(last_user, USER_HISTORY[this_sid])},
                     *USER_HISTORY[this_sid]
                 ],
-                temperature=0.6,
+                temperature=0.7,
                 max_tokens=180
             )
             reply = gpt.choices[0].message["content"].strip()
@@ -204,6 +210,7 @@ def chat():
         text = offline_reply(user_message, mood, USER_HISTORY[this_sid])
         USER_HISTORY[this_sid].append({"role": "assistant", "content": text})
 
+    # Goal nudge
     if prefs.get("memory_opt_in"):
         text += goal_nudge(this_sid)
 
