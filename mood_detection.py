@@ -1,41 +1,52 @@
-# mood_detection.py
 from textblob import TextBlob
 import re
 from difflib import get_close_matches
 
 # -----------------------
-# Keyword & Phrase Lists
+# Mood Keywords & Phrases
 # -----------------------
 
-POSITIVE_KEYWORDS = [
+positive_keywords = [
     "happy", "excited", "good", "great", "wonderful", "amazing",
     "fantastic", "excellent", "brilliant", "awesome", "perfect",
-    "love", "joy", "grateful", "blessed", "optimistic", "cheerful"
+    "love", "joy", "grateful", "blessed", "optimistic", "smile", "smiling",
+    "chill", "relaxed", "calm"
 ]
 
-NEGATIVE_KEYWORDS = [
-    "sad", "upset", "depressed", "bad", "terrible", "awful", "angry",
-    "lonely", "tired", "exhausted", "overwhelmed", "bored", "meh",
-    "hurt", "broken", "empty", "hopeless", "unwell", "sick", "ill"
+sad_keywords = [
+    "sad", "depressed", "down", "low", "upset", "crying", "tears",
+    "disappointed", "hurt", "broken", "lonely", "empty", "numb",
+    "unwell", "sick", "ill", "tired", "exhausted", "drained", "burnt out",
+    "miserable", "hopeless", "worthless", "pointless"
 ]
 
-ANXIOUS_KEYWORDS = [
-    "nervous", "worried", "scared", "anxious", "uneasy", "overthinking",
-    "panic", "stressed", "fear", "tense", "restless"
+anxiety_keywords = [
+    "anxious", "worried", "nervous", "scared", "panic", "stressed",
+    "overwhelmed", "fear", "terrified", "tense", "shaky", "uneasy"
 ]
 
-SAD_PHRASES = [
-    "not great", "not okay", "not good", "could be better", "not feeling well",
-    "feeling bad", "feel unwell", "feel down", "under the weather"
+# Common negative phrases that might indicate sadness
+sad_phrases = [
+    "not feeling well", "not good", "not okay", "feeling bad", 
+    "feel unwell", "feel down", "under the weather", "don't care anymore",
+    "can't be bothered", "not worth it", "feel empty", "nothing matters"
 ]
 
-NEGATION_WORDS = {"not", "never", "no", "hardly"}
+anxious_phrases = [
+    "on edge", "butterflies in my stomach", "heart racing", "can't relax",
+    "losing control", "mind won't stop", "can't sleep", "restless"
+]
+
+positive_phrases = [
+    "feeling good", "doing great", "can't complain", "all good",
+    "pretty good", "feeling fine", "in a good place"
+]
 
 # -----------------------
-# Helpers
+# Fuzzy Matching Helper
 # -----------------------
 
-def fuzzy_match(text, keywords, cutoff=0.85):
+def fuzzy_match(text, keywords, cutoff=0.82):
     """Return True if any word in text closely matches a keyword."""
     words = text.split()
     for word in words:
@@ -44,40 +55,44 @@ def fuzzy_match(text, keywords, cutoff=0.85):
     return False
 
 # -----------------------
-# Main Function
+# Mood Detection Function
 # -----------------------
 
 def get_mood(message: str) -> str:
+    """
+    Analyzes the mood of the user message.
+    Returns one of: 'happy', 'sad', 'anxious', or 'neutral'.
+    """
     if not message or not message.strip():
         return "neutral"
 
-    msg = message.lower().strip()
+    message_lower = message.lower().strip()
 
-    # 1️⃣ Direct phrase matches first
-    if any(phrase in msg for phrase in SAD_PHRASES):
-        return "sad"
-
-    if fuzzy_match(msg, POSITIVE_KEYWORDS) or "feeling good" in msg or "doing great" in msg:
-        return "happy"
-
-    if fuzzy_match(msg, NEGATIVE_KEYWORDS):
-        return "sad"
-
-    if fuzzy_match(msg, ANXIOUS_KEYWORDS):
-        return "anxious"
-
-    # 2️⃣ Negation handling
-    tokens = re.findall(r"\b\w+\b", msg)
-    for i, word in enumerate(tokens):
-        if word in NEGATION_WORDS and i + 1 < len(tokens):
-            if tokens[i+1] in POSITIVE_KEYWORDS:
-                return "sad"
-            elif tokens[i+1] in NEGATIVE_KEYWORDS:
-                return "happy"
-
-    # 3️⃣ Sentiment fallback
+    # Sentiment analysis
     blob = TextBlob(message)
     polarity = blob.sentiment.polarity
+
+    # Keyword & phrase-based detection
+    if fuzzy_match(message_lower, positive_keywords) or \
+       any(phrase in message_lower for phrase in positive_phrases):
+        return "happy"
+
+    if fuzzy_match(message_lower, sad_keywords) or \
+       any(phrase in message_lower for phrase in sad_phrases):
+        return "sad"
+
+    if fuzzy_match(message_lower, anxiety_keywords) or \
+       any(phrase in message_lower for phrase in anxious_phrases):
+        return "anxious"
+
+    # Sentiment fallback (subtler thresholds for short messages)
+    if len(message.split()) <= 3:  
+        if polarity < -0.15:
+            return "sad"
+        elif polarity > 0.15:
+            return "happy"
+        else:
+            return "neutral"
 
     if polarity < -0.3:
         return "sad"
@@ -85,17 +100,3 @@ def get_mood(message: str) -> str:
         return "happy"
     else:
         return "neutral"
-
-# -----------------------
-# Quick Tests
-# -----------------------
-if __name__ == "__main__":
-    tests = [
-        "I am happy", "not great", "I feel awful", "not sad", "I'm anxious",
-        "meh", "could be better", "feeling good", "I'm blessed", "not happy",
-        "doing great", "under the weather"
-    ]
-    for t in tests:
-        print(f"{t} -> {get_mood(t)}")
-
-
