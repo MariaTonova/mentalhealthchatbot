@@ -4,4 +4,6 @@ textblob==0.17.1
 openai==0.28.1
 transformers>=4.41.0
 accelerate>=0.31.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
 
