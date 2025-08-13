@@ -14,6 +14,8 @@ print("ENV USE_DIALOGPT =", os.getenv("USE_DIALOGPT"), flush=True)
 print("ENV DIALOGPT_MODEL_ID =", os.getenv("DIALOGPT_MODEL_ID"), flush=True)
 
 backend = get_backend()
+BACKEND_NAME = getattr(backend, "NAME", "unknown")
+print("ACTIVE BACKEND =", BACKEND_NAME, flush=True)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -65,10 +67,10 @@ def build_system_prompt(last_user_msg: str | None, history: list) -> str:
         "For casual greetings, respond naturally as a human friend would."
     )
     if history:
-        convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
-        base += f"\nConversation so far:\n{convo}"
+        convo = "\n".join([f\"{h['role']}: {h['content']}\" for h in history[-5:]])
+        base += f\"\\nConversation so far:\\n{convo}\"
     elif last_user_msg:
-        base += f'\nPrevious message from user: "{last_user_msg}".'
+        base += f'\\nPrevious message from user: \"{last_user_msg}\".'
     return base
 
 def offline_reply(user_message: str, mood: str, history: list) -> str:
@@ -196,21 +198,19 @@ def chat():
     if low in {"i am", "i'm", "im"}:
         reply = "It can help to name it. Would you say you feel okay, low, stressed, or something else?"
         USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-        active_mode = "dialogpt" if os.getenv("USE_DIALOGPT", "0") == "1" else ("gpt" if openai else "offline")
-        return jsonify({"response": reply, "mood": "neutral", "mode": active_mode})
+        return jsonify({"response": reply, "mood": "neutral", "mode": BACKEND_NAME})
 
-    # Small talk detection (more forgiving: prefix match)
+    # Small talk detection (prefix match)
     key = next((k for k in SMALL_TALK if low.startswith(k)), None)
     if key:
         reply = SMALL_TALK[key]
         USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-        active_mode = "dialogpt" if os.getenv("USE_DIALOGPT", "0") == "1" else ("gpt" if openai else "offline")
-        return jsonify({"response": reply, "mood": mood, "mode": active_mode})
+        return jsonify({"response": reply, "mood": mood, "mode": BACKEND_NAME})
 
     # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # Unified backend call with stronger framing
+    # Unified backend call with framing
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
                     f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
     try:
@@ -219,7 +219,6 @@ def chat():
         print("❌ Backend error:", e, file=sys.stderr, flush=True)
         reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
 
-    # Prepend intro and add goal nudge if memory is on
     reply = f"{intro}{reply}"
     if prefs.get("memory_opt_in"):
         reply += goal_nudge(this_sid)
@@ -227,19 +226,14 @@ def chat():
     USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
 
-    active_mode = "dialogpt" if os.getenv("USE_DIALOGPT", "0") == "1" else ("gpt" if openai else "offline")
-    return jsonify({"response": reply, "mood": mood, "mode": active_mode})
+    return jsonify({"response": reply, "mood": mood, "mode": BACKEND_NAME})
 
 @app.route("/status")
 def status():
-    # Report active mode for easy verification in Render
-    mode = "offline"
-    if os.getenv("USE_DIALOGPT", "0") == "1":
-        mode = "dialogpt"
-    elif openai:
-        mode = "gpt"
-    return {"mode": mode}
+    # Report the actual, selected backend
+    return {"mode": BACKEND_NAME}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
