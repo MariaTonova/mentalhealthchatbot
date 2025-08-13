@@ -5,14 +5,13 @@ from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, sys, uuid, random, requests
-from datasets import load_dataset
 
-# ---------------- Environment & API Keys ----------------
+# ---------------- Backend Preference ----------------
 HF_API_KEY = os.getenv("HF_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 USE_HF = bool(HF_API_KEY)
-USE_OPENAI = bool(OPENAI_API_KEY)
+USE_OPENAI = bool(OPENAI_API_KEY) and not USE_HF  # GPT only if HF not available
 
 if USE_HF:
     print("🤗 HF mode: Hugging Face API key detected", flush=True)
@@ -23,14 +22,30 @@ elif USE_OPENAI:
 else:
     print("💬 Offline mode: no API key found", flush=True)
 
-# ---------------- Load Dataset for Style ----------------
+# ---------------- Dataset Loading ----------------
+mh_examples = []
 try:
-    mh_dataset = load_dataset("mhdang/mental_health_counseling_conversations", split="train")
-    mh_examples = [(item["Context"], item["Response"]) for item in mh_dataset]
-    print(f"📚 Loaded {len(mh_examples)} mental health counseling examples", flush=True)
+    from datasets import load_dataset
+    hf_token = os.getenv("HF_API_KEY")
+
+    print("📥 Attempting to load Hugging Face dataset...", flush=True)
+    dataset = load_dataset("mental_health_counseling_conversations", split="train", token=hf_token)
+    
+    # Filter UK-specific examples
+    mh_examples = [e["dialogue"] for e in dataset if "UK" in e.get("dialogue", "") or "Britain" in e.get("dialogue", "")]
+    print(f"✅ Loaded {len(mh_examples)} UK-specific examples from dataset", flush=True)
+
 except Exception as e:
-    print("⚠️ Could not load dataset:", e)
-    mh_examples = []
+    print(f"⚠ Could not load dataset examples: {e}", flush=True)
+    # Fallback local examples
+    mh_examples = [
+        "Counselor: It sounds like you’ve been feeling anxious about work lately. How has that been affecting your daily routine?",
+        "Client: I feel stressed most days, and I’m finding it hard to relax even at home.",
+        "Counselor: Let’s explore some small grounding exercises you can try during the day to ease the tension.",
+        "Client: I sometimes feel alone, even when I’m with friends.",
+        "Counselor: That’s a tough feeling to carry. It’s okay to talk openly about it here."
+    ]
+    print(f"💾 Using {len(mh_examples)} built-in sample examples instead.", flush=True)
 
 # ---------------- Flask App ----------------
 app = Flask(__name__)
@@ -68,25 +83,13 @@ SUGGESTION_EXPLAINS = {
 }
 
 def build_system_prompt(last_user_msg, history):
-    # Random dataset examples
-    example_text = ""
-    if mh_examples:
-        sample_pairs = random.sample(mh_examples, min(8, len(mh_examples)))
-        example_text = "\nHere are example mental health counseling conversations (mimic their tone and style):\n"
-        for ctx, resp in sample_pairs:
-            example_text += f"User: {ctx}\nAssistant: {resp}\n"
-
     base = (
         "You are CareBear, a warm, friendly mental health companion who also enjoys casual conversation.\n"
         "STYLE: Respond in 2–3 short sentences, with warmth and empathy. Use light emojis for friendliness.\n"
         "If mood is anxious, begin with reassurance and grounding advice.\n"
         "AVOID: lists, over-clinical tone, or long lectures.\n"
-        "Do not repeat the same opening line twice in a conversation.\n"
         "For casual greetings, respond naturally as a human friend would."
     )
-
-    base = example_text + "\n" + base
-
     if history:
         convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
         base += f"\nConversation so far:\n{convo}"
@@ -149,6 +152,10 @@ def call_huggingface(history, user_message, system_prompt):
             return response.json()[0]["generated_text"].strip()
     except Exception as e:
         print("❌ HuggingFace error:", e, file=sys.stderr)
+
+    # Fallback to dataset sample if available
+    if mh_examples:
+        return random.choice(mh_examples)
     return None
 
 def call_openai(history, user_message, system_prompt):
@@ -207,12 +214,17 @@ def chat():
                     f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
 
     reply = None
+    backend_used = "offline"
     if USE_HF:
         reply = call_huggingface(USER_HISTORY[this_sid], user_message, system_prompt)
-    if not reply and USE_OPENAI:
+        backend_used = "huggingface"
+    elif USE_OPENAI:
         reply = call_openai(USER_HISTORY[this_sid], user_message, system_prompt)
+        backend_used = "gpt"
+
     if not reply:
         reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
+        backend_used = "offline"
 
     reply = f"{intro}{reply}"
     if prefs.get("memory_opt_in"):
@@ -221,7 +233,7 @@ def chat():
     USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
 
-    return jsonify({"response": reply, "mood": mood})
+    return jsonify({"response": reply, "mood": mood, "mode": backend_used})
 
 @app.route("/status")
 def status():
