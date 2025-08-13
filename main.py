@@ -5,9 +5,10 @@ from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, sys, uuid, random
+
+# NEW: unified backend (OpenAI or DialoGPT)
 from services.backends import get_backend
 backend = get_backend()
-
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -91,6 +92,9 @@ def offline_reply(user_message: str, mood: str, history: list) -> str:
     reply = random.choice(mood_responses.get(mood, mood_responses["neutral"]))
     if mood == "anxious":
         reply += " Try 5-4-3-2-1 grounding: name 5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste. What’s the first thing you see?"
+    else:
+        # keep the conversation going in offline mode too
+        reply += " What feels most important to talk about right now?"
     return reply
 
 def crisis_message() -> str:
@@ -183,35 +187,34 @@ def chat():
             "point": user_message[:160]
         })
 
-    # Small talk detection
-    if user_message.lower() in SMALL_TALK:
-        reply = SMALL_TALK[user_message.lower()]
+    # Turn repair for partial inputs like "I am..."
+    low = user_message.lower().strip()
+    if low in {"i am", "i'm", "im"}:
+        reply = "It can help to name it. Would you say you feel okay, low, stressed, or something else?"
+        USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
+        return jsonify({"response": reply, "mood": "neutral"})
+
+    # Small talk detection (more forgiving: prefix match)
+    key = next((k for k in SMALL_TALK if low.startswith(k)), None)
+    if key:
+        reply = SMALL_TALK[key]
         USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
         return jsonify({"response": reply, "mood": mood})
 
     # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # GPT Mode
-    if openai:
-        try:
-            gpt = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": build_system_prompt(last_user, USER_HISTORY[this_sid])},
-                    *USER_HISTORY[this_sid]
-                ],
-                temperature=0.7,
-                max_tokens=180
-            )
-            reply = gpt.choices[0].message["content"].strip()
-        except Exception as e:
-            print("❌ OpenAI error:", e, file=sys.stderr, flush=True)
-            reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
-    else:
+    # NEW: unified backend call (OpenAI or DialoGPT), with stronger framing
+    system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
+                    f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
+    try:
+        reply = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
+    except Exception as e:
+        print("❌ Backend error:", e, file=sys.stderr, flush=True)
         reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
 
-    # Goal nudge
+    # Prepend intro and add goal nudge if memory is on
+    reply = f"{intro}{reply}"
     if prefs.get("memory_opt_in"):
         reply += goal_nudge(this_sid)
 
@@ -221,7 +224,13 @@ def chat():
 
 @app.route("/status")
 def status():
-    return {"mode": "gpt" if openai else "offline"}
+    # Report active mode for easy verification in Render
+    mode = "offline"
+    if os.getenv("USE_DIALOGPT", "0") == "1":
+        mode = "dialogpt"
+    elif openai:
+        mode = "gpt"
+    return {"mode": mode}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
