@@ -5,13 +5,14 @@ from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, sys, uuid, random, requests
+from datasets import load_dataset
 
-# ---------------- Backend Preference ----------------
+# ---------------- Environment & API Keys ----------------
 HF_API_KEY = os.getenv("HF_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 USE_HF = bool(HF_API_KEY)
-USE_OPENAI = bool(OPENAI_API_KEY) and not USE_HF  # GPT only if HF not available
+USE_OPENAI = bool(OPENAI_API_KEY)
 
 if USE_HF:
     print("🤗 HF mode: Hugging Face API key detected", flush=True)
@@ -22,6 +23,15 @@ elif USE_OPENAI:
 else:
     print("💬 Offline mode: no API key found", flush=True)
 
+# ---------------- Load Dataset for Style ----------------
+try:
+    mh_dataset = load_dataset("mhdang/mental_health_counseling_conversations", split="train")
+    mh_examples = [(item["Context"], item["Response"]) for item in mh_dataset]
+    print(f"📚 Loaded {len(mh_examples)} mental health counseling examples", flush=True)
+except Exception as e:
+    print("⚠️ Could not load dataset:", e)
+    mh_examples = []
+
 # ---------------- Flask App ----------------
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -31,29 +41,6 @@ USER_NOTES = defaultdict(list)
 USER_GOALS = defaultdict(list)
 USER_HISTORY = defaultdict(list)
 CRISIS_MODE = set()
-
-# ---------------- Load Dataset Few-Shots ----------------
-def load_mental_health_examples():
-    """
-    Loads a small few-shot set from the mental_health_counseling_conversations dataset (UK-adapted tone).
-    """
-    try:
-        url = "https://huggingface.co/datasets/Amod/mental_health_counseling_conversations/resolve/main/data/train.json"
-        data = requests.get(url, timeout=10).json()
-        # Pick first 5 examples and adapt to UK style
-        examples = []
-        for ex in data[:5]:
-            user_text = ex.get("Context", "").strip()
-            bot_text = ex.get("Response", "").strip()
-            if user_text and bot_text:
-                examples.append(f"User: {user_text}\nAssistant: {bot_text}")
-        print(f"✅ Loaded {len(examples)} few-shot examples from dataset.")
-        return "\n".join(examples)
-    except Exception as e:
-        print("⚠ Could not load dataset examples:", e)
-        return ""
-
-FEW_SHOT_EXAMPLES = load_mental_health_examples()
 
 # ---------------- Small Talk ----------------
 SMALL_TALK = {
@@ -81,14 +68,25 @@ SUGGESTION_EXPLAINS = {
 }
 
 def build_system_prompt(last_user_msg, history):
+    # Random dataset examples
+    example_text = ""
+    if mh_examples:
+        sample_pairs = random.sample(mh_examples, min(8, len(mh_examples)))
+        example_text = "\nHere are example mental health counseling conversations (mimic their tone and style):\n"
+        for ctx, resp in sample_pairs:
+            example_text += f"User: {ctx}\nAssistant: {resp}\n"
+
     base = (
-        "You are CareBear, a warm, friendly UK-based mental health companion.\n"
-        "Provide empathetic, supportive, non-clinical advice and UK resources.\n"
-        "STYLE: Respond in 2–3 short sentences, with warmth and empathy.\n"
-        "Avoid over-clinical tone. Use light emojis for friendliness.\n"
-        "Here are example conversations:\n"
-        f"{FEW_SHOT_EXAMPLES}\n"
+        "You are CareBear, a warm, friendly mental health companion who also enjoys casual conversation.\n"
+        "STYLE: Respond in 2–3 short sentences, with warmth and empathy. Use light emojis for friendliness.\n"
+        "If mood is anxious, begin with reassurance and grounding advice.\n"
+        "AVOID: lists, over-clinical tone, or long lectures.\n"
+        "Do not repeat the same opening line twice in a conversation.\n"
+        "For casual greetings, respond naturally as a human friend would."
     )
+
+    base = example_text + "\n" + base
+
     if history:
         convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
         base += f"\nConversation so far:\n{convo}"
@@ -211,9 +209,8 @@ def chat():
     reply = None
     if USE_HF:
         reply = call_huggingface(USER_HISTORY[this_sid], user_message, system_prompt)
-    elif USE_OPENAI:
+    if not reply and USE_OPENAI:
         reply = call_openai(USER_HISTORY[this_sid], user_message, system_prompt)
-
     if not reply:
         reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
 
