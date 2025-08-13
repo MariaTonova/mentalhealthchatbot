@@ -5,6 +5,9 @@ from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, sys, uuid, random
+from services.backends import get_backend
+backend = get_backend()
+
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
