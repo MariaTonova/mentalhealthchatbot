@@ -9,5 +9,6 @@ accelerate>=0.31.0
 torch==2.7.1+cpu
 # If you plan LoRA later, also:
 # peft>=0.11.0
+datasets
 
 
