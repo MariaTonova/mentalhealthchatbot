@@ -4,30 +4,27 @@ from collections import defaultdict
 from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
-import os, sys, uuid, random
+import os, sys, uuid, random, requests
 
-# Unified backend (OpenAI or DialoGPT)
-from services.backends import get_backend
-
-# Show what Render actually passed in (helps debug)
-print("ENV USE_DIALOGPT =", os.getenv("USE_DIALOGPT"), flush=True)
-print("ENV DIALOGPT_MODEL_ID =", os.getenv("DIALOGPT_MODEL_ID"), flush=True)
-
-backend = get_backend()
-BACKEND_NAME = getattr(backend, "NAME", "unknown")
-print("ACTIVE BACKEND =", BACKEND_NAME, flush=True)
-
-app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
-
+# ---------------- Backend Preference ----------------
+HF_API_KEY = os.getenv("HF_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if OPENAI_API_KEY:
-    print("✅ GPT mode: key detected", flush=True)
+
+USE_HF = bool(HF_API_KEY)
+USE_OPENAI = bool(OPENAI_API_KEY) and not USE_HF  # GPT only if HF not available
+
+if USE_HF:
+    print("🤗 HF mode: Hugging Face API key detected", flush=True)
+elif USE_OPENAI:
     import openai
     openai.api_key = OPENAI_API_KEY
+    print("✅ GPT mode: OpenAI API key detected", flush=True)
 else:
-    print("💬 Offline mode: no OPENAI_API_KEY found", flush=True)
-    openai = None
+    print("💬 Offline mode: no API key found", flush=True)
+
+# ---------------- Flask App ----------------
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
 USER_PREFS = {}
 USER_NOTES = defaultdict(list)
@@ -35,17 +32,7 @@ USER_GOALS = defaultdict(list)
 USER_HISTORY = defaultdict(list)
 CRISIS_MODE = set()
 
-def sid():
-    if "sid" not in session:
-        session["sid"] = str(uuid.uuid4())
-    return session["sid"]
-
-SUGGESTION_EXPLAINS = {
-    "5-4-3-2-1 grounding": "Grounding redirects attention to present-moment senses and can lower arousal (CBT skill).",
-    "paced breathing": "Slower, longer exhales stimulate the parasympathetic system so the body can settle.",
-    "thought reframing": "CBT reframing examines evidence for/against a thought and finds a more balanced view."
-}
-
+# ---------------- Small Talk ----------------
 SMALL_TALK = {
     "hi": "Hey there! 👋 How’s your day going so far?",
     "hello": "Hello! 😊 What’s been on your mind today?",
@@ -58,7 +45,19 @@ SMALL_TALK = {
     "what's up": "Not much — just happy to chat with you! 💬"
 }
 
-def build_system_prompt(last_user_msg: str | None, history: list) -> str:
+# ---------------- Helpers ----------------
+def sid():
+    if "sid" not in session:
+        session["sid"] = str(uuid.uuid4())
+    return session["sid"]
+
+SUGGESTION_EXPLAINS = {
+    "5-4-3-2-1 grounding": "Grounding redirects attention to present-moment senses and can lower arousal (CBT skill).",
+    "paced breathing": "Slower, longer exhales stimulate the parasympathetic system so the body can settle.",
+    "thought reframing": "CBT reframing examines evidence for/against a thought and finds a more balanced view."
+}
+
+def build_system_prompt(last_user_msg, history):
     base = (
         "You are CareBear, a warm, friendly mental health companion who also enjoys casual conversation.\n"
         "STYLE: Respond in 2–3 short sentences, with warmth and empathy. Use light emojis for friendliness.\n"
@@ -67,13 +66,13 @@ def build_system_prompt(last_user_msg: str | None, history: list) -> str:
         "For casual greetings, respond naturally as a human friend would."
     )
     if history:
-        convo = "\n".join([f\"{h['role']}: {h['content']}\" for h in history[-5:]])
-        base += f\"\\nConversation so far:\\n{convo}\"
+        convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
+        base += f"\nConversation so far:\n{convo}"
     elif last_user_msg:
-        base += f'\\nPrevious message from user: \"{last_user_msg}\".'
+        base += f'\nPrevious message from user: "{last_user_msg}".'
     return base
 
-def offline_reply(user_message: str, mood: str, history: list) -> str:
+def offline_reply(user_message, mood, history):
     mood_responses = {
         "sad": [
             "I hear how heavy things feel right now. You’re not alone in this 💛",
@@ -103,7 +102,7 @@ def offline_reply(user_message: str, mood: str, history: list) -> str:
         reply += " What feels most important to talk about right now?"
     return reply
 
-def crisis_message() -> str:
+def crisis_message():
     return (
         "I’m really sorry you’re feeling this way. Your safety matters so much. "
         "If you’re in danger, please call emergency services. 📞\n"
@@ -113,54 +112,44 @@ def crisis_message() -> str:
         "If you feel safe, we can talk more — but please make sure you’re supported right now."
     )
 
-def goal_nudge(this_sid: str) -> str:
+def goal_nudge(this_sid):
     open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
     return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?" if open_goals else ""
 
+# ---------------- API Calls ----------------
+def call_huggingface(history, user_message, system_prompt):
+    try:
+        url = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        payload = {"inputs": f"{system_prompt}\nUser: {user_message}\nAssistant:"}
+        response = requests.post(url, headers=headers, json=payload, timeout=20)
+        if response.status_code == 200:
+            return response.json()[0]["generated_text"].strip()
+    except Exception as e:
+        print("❌ HuggingFace error:", e, file=sys.stderr)
+    return None
+
+def call_openai(history, user_message, system_prompt):
+    try:
+        gpt = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                *history,
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.6,
+            max_tokens=180,
+        )
+        return gpt.choices[0].message["content"].strip()
+    except Exception as e:
+        print("❌ OpenAI error:", e, file=sys.stderr)
+    return None
+
+# ---------------- Routes ----------------
 @app.route("/")
 def home():
     return render_template("index.html")
-
-@app.route("/start", methods=["POST"])
-def start():
-    data = request.json or {}
-    tone = data.get("tone", "friendly")
-    memory_opt_in = bool(data.get("memory_opt_in", False))
-    USER_PREFS[sid()] = {"tone": tone, "memory_opt_in": memory_opt_in}
-    disclosure = (
-        "I’m an AI, not a clinician. I offer supportive wellbeing guidance and crisis resources when needed. "
-        "You can opt out of memory anytime."
-    )
-    return jsonify({"ok": True, "disclosure": disclosure, "prefs": USER_PREFS[sid()]})
-
-@app.route("/ask-why", methods=["POST"])
-def ask_why():
-    item = (request.json or {}).get("item", "").strip().lower()
-    for k, v in SUGGESTION_EXPLAINS.items():
-        if k.lower() in item:
-            return jsonify({"why": v})
-    return jsonify({"why": "I suggest skills from CBT/mindfulness that match your mood and recent messages."})
-
-@app.route("/set-goal", methods=["POST"])
-def set_goal():
-    g = (request.json or {}).get("goal", "").strip()
-    if not g:
-        return jsonify({"ok": False, "error": "empty"})
-    USER_GOALS[sid()].append({"goal": g, "done": False, "ts": datetime.utcnow().isoformat()})
-    return jsonify({"ok": True, "msg": "Got it—I'll check in on this next time."})
-
-@app.route("/session-summary", methods=["GET"])
-def summary():
-    notes = USER_NOTES.get(sid(), [])[-6:]
-    moods = [n["mood"] for n in notes]
-    trend = " → ".join(moods) if moods else "n/a"
-    bullets = [f"- {n['point']}" for n in notes]
-    return jsonify({"mood_trend": trend, "highlights": bullets})
-
-@app.route("/resume", methods=["POST"])
-def resume():
-    CRISIS_MODE.discard(sid())
-    return jsonify({"response": "Thanks for checking back in. How are you feeling right now?"})
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -173,19 +162,17 @@ def chat():
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
     last_user = session.get("last_user")
 
-    # Mood + crisis detection
     mood = get_mood(user_message)
+
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
         return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
     if this_sid in CRISIS_MODE:
         return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
 
-    # Store history
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
     USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
 
-    # Store notes if memory is on
     if prefs.get("memory_opt_in"):
         USER_NOTES[this_sid].append({
             "ts": datetime.utcnow().isoformat(),
@@ -193,30 +180,17 @@ def chat():
             "point": user_message[:160]
         })
 
-    # Turn repair for partial inputs like "I am..."
-    low = user_message.lower().strip()
-    if low in {"i am", "i'm", "im"}:
-        reply = "It can help to name it. Would you say you feel okay, low, stressed, or something else?"
-        USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-        return jsonify({"response": reply, "mood": "neutral", "mode": BACKEND_NAME})
-
-    # Small talk detection (prefix match)
-    key = next((k for k in SMALL_TALK if low.startswith(k)), None)
-    if key:
-        reply = SMALL_TALK[key]
-        USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-        return jsonify({"response": reply, "mood": mood, "mode": BACKEND_NAME})
-
-    # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
-
-    # Unified backend call with framing
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
                     f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
-    try:
-        reply = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
-    except Exception as e:
-        print("❌ Backend error:", e, file=sys.stderr, flush=True)
+
+    reply = None
+    if USE_HF:
+        reply = call_huggingface(USER_HISTORY[this_sid], user_message, system_prompt)
+    elif USE_OPENAI:
+        reply = call_openai(USER_HISTORY[this_sid], user_message, system_prompt)
+
+    if not reply:
         reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
 
     reply = f"{intro}{reply}"
@@ -226,14 +200,16 @@ def chat():
     USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
 
-    return jsonify({"response": reply, "mood": mood, "mode": BACKEND_NAME})
+    return jsonify({"response": reply, "mood": mood})
 
 @app.route("/status")
 def status():
-    # Report the actual, selected backend
-    return {"mode": BACKEND_NAME}
+    if USE_HF:
+        return {"mode": "huggingface"}
+    elif USE_OPENAI:
+        return {"mode": "gpt"}
+    return {"mode": "offline"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
