@@ -6,8 +6,13 @@ from crisis_detection import check_crisis
 from personalization import personalize_response
 import os, sys, uuid, random
 
-# NEW: unified backend (OpenAI or DialoGPT)
+# Unified backend (OpenAI or DialoGPT)
 from services.backends import get_backend
+
+# Show what Render actually passed in (helps debug)
+print("ENV USE_DIALOGPT =", os.getenv("USE_DIALOGPT"), flush=True)
+print("ENV DIALOGPT_MODEL_ID =", os.getenv("DIALOGPT_MODEL_ID"), flush=True)
+
 backend = get_backend()
 
 app = Flask(__name__)
@@ -63,7 +68,7 @@ def build_system_prompt(last_user_msg: str | None, history: list) -> str:
         convo = "\n".join([f"{h['role']}: {h['content']}" for h in history[-5:]])
         base += f"\nConversation so far:\n{convo}"
     elif last_user_msg:
-        base += f"\nPrevious message from user: \"{last_user_msg}\"."
+        base += f'\nPrevious message from user: "{last_user_msg}".'
     return base
 
 def offline_reply(user_message: str, mood: str, history: list) -> str:
@@ -93,7 +98,6 @@ def offline_reply(user_message: str, mood: str, history: list) -> str:
     if mood == "anxious":
         reply += " Try 5-4-3-2-1 grounding: name 5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste. What’s the first thing you see?"
     else:
-        # keep the conversation going in offline mode too
         reply += " What feels most important to talk about right now?"
     return reply
 
@@ -192,19 +196,21 @@ def chat():
     if low in {"i am", "i'm", "im"}:
         reply = "It can help to name it. Would you say you feel okay, low, stressed, or something else?"
         USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-        return jsonify({"response": reply, "mood": "neutral"})
+        active_mode = "dialogpt" if os.getenv("USE_DIALOGPT", "0") == "1" else ("gpt" if openai else "offline")
+        return jsonify({"response": reply, "mood": "neutral", "mode": active_mode})
 
     # Small talk detection (more forgiving: prefix match)
     key = next((k for k in SMALL_TALK if low.startswith(k)), None)
     if key:
         reply = SMALL_TALK[key]
         USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-        return jsonify({"response": reply, "mood": mood})
+        active_mode = "dialogpt" if os.getenv("USE_DIALOGPT", "0") == "1" else ("gpt" if openai else "offline")
+        return jsonify({"response": reply, "mood": mood, "mode": active_mode})
 
     # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # NEW: unified backend call (OpenAI or DialoGPT), with stronger framing
+    # Unified backend call with stronger framing
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
                     f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
     try:
@@ -220,7 +226,9 @@ def chat():
 
     USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
-    return jsonify({"response": reply, "mood": mood})
+
+    active_mode = "dialogpt" if os.getenv("USE_DIALOGPT", "0") == "1" else ("gpt" if openai else "offline")
+    return jsonify({"response": reply, "mood": mood, "mode": active_mode})
 
 @app.route("/status")
 def status():
