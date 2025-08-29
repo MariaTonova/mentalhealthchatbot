@@ -4,6 +4,7 @@ from collections import defaultdict
 from mood_detection import get_mood
 from crisis_detection import check_crisis
 from personalization import personalize_response
+from cbt_responses import get_cbt_response
 import os, sys, uuid, random, requests
 
 # ---------------- Backend Preference ----------------
@@ -11,7 +12,7 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 USE_HF = bool(HF_API_KEY)
-USE_OPENAI = bool(OPENAI_API_KEY) and not USE_HF  # GPT only if HF not available
+USE_OPENAI = bool(OPENAI_API_KEY) and not USE_HF
 
 if USE_HF:
     print("🤗 HF mode: Hugging Face API key detected", flush=True)
@@ -22,31 +23,6 @@ elif USE_OPENAI:
 else:
     print("💬 Offline mode: no API key found", flush=True)
 
-# ---------------- Dataset Loading ----------------
-mh_examples = []
-try:
-    from datasets import load_dataset
-    hf_token = os.getenv("HF_API_KEY")
-
-    print("📥 Attempting to load Hugging Face dataset...", flush=True)
-    dataset = load_dataset("mental_health_counseling_conversations", split="train", token=hf_token)
-    
-    # Filter UK-specific examples
-    mh_examples = [e["dialogue"] for e in dataset if "UK" in e.get("dialogue", "") or "Britain" in e.get("dialogue", "")]
-    print(f"✅ Loaded {len(mh_examples)} UK-specific examples from dataset", flush=True)
-
-except Exception as e:
-    print(f"⚠ Could not load dataset examples: {e}", flush=True)
-    # Fallback local examples
-    mh_examples = [
-        "Counselor: It sounds like you’ve been feeling anxious about work lately. How has that been affecting your daily routine?",
-        "Client: I feel stressed most days, and I’m finding it hard to relax even at home.",
-        "Counselor: Let’s explore some small grounding exercises you can try during the day to ease the tension.",
-        "Client: I sometimes feel alone, even when I’m with friends.",
-        "Counselor: That’s a tough feeling to carry. It’s okay to talk openly about it here."
-    ]
-    print(f"💾 Using {len(mh_examples)} built-in sample examples instead.", flush=True)
-
 # ---------------- Flask App ----------------
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -56,19 +32,6 @@ USER_NOTES = defaultdict(list)
 USER_GOALS = defaultdict(list)
 USER_HISTORY = defaultdict(list)
 CRISIS_MODE = set()
-
-# ---------------- Small Talk ----------------
-SMALL_TALK = {
-    "hi": "Hey there! 👋 How’s your day going so far?",
-    "hello": "Hello! 😊 What’s been on your mind today?",
-    "hey": "Hey! 🌟 How are you feeling right now?",
-    "thanks": "You’re so welcome! 💛",
-    "thank you": "Always happy to help 💛",
-    "how are you": "I’m doing well, thanks for asking! How about you?",
-    "good morning": "Good morning! ☀️ How’s your start to the day?",
-    "good evening": "Good evening! 🌙 How has your day been?",
-    "what's up": "Not much — just happy to chat with you! 💬"
-}
 
 # ---------------- Helpers ----------------
 def sid():
@@ -97,36 +60,6 @@ def build_system_prompt(last_user_msg, history):
         base += f'\nPrevious message from user: "{last_user_msg}".'
     return base
 
-def offline_reply(user_message, mood, history):
-    mood_responses = {
-        "sad": [
-            "I hear how heavy things feel right now. You’re not alone in this 💛",
-            "That sounds really hard. I’m here with you.",
-            "I can feel the weight in your words. Let’s take this one step at a time."
-        ],
-        "happy": [
-            "That’s wonderful to hear! 🌟",
-            "I’m so glad you’re feeling this way!",
-            "That’s a bright moment worth holding onto."
-        ],
-        "anxious": [
-            "It’s okay to feel this way — let’s take a slow deep breath together 🌿",
-            "Your feelings are valid. We can slow things down right now.",
-            "I hear your worry. Let’s ground ourselves together."
-        ],
-        "neutral": [
-            "I’m here with you. Tell me more about what’s been on your mind.",
-            "How’s your day been going so far?",
-            "What’s been occupying your thoughts lately?"
-        ]
-    }
-    reply = random.choice(mood_responses.get(mood, mood_responses["neutral"]))
-    if mood == "anxious":
-        reply += " Try 5-4-3-2-1 grounding: name 5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste. What’s the first thing you see?"
-    else:
-        reply += " What feels most important to talk about right now?"
-    return reply
-
 def crisis_message():
     return (
         "I’m really sorry you’re feeling this way. Your safety matters so much. "
@@ -152,10 +85,6 @@ def call_huggingface(history, user_message, system_prompt):
             return response.json()[0]["generated_text"].strip()
     except Exception as e:
         print("❌ HuggingFace error:", e, file=sys.stderr)
-
-    # Fallback to dataset sample if available
-    if mh_examples:
-        return random.choice(mh_examples)
     return None
 
 def call_openai(history, user_message, system_prompt):
@@ -223,8 +152,9 @@ def chat():
         backend_used = "gpt"
 
     if not reply:
-        reply = offline_reply(user_message, mood, USER_HISTORY[this_sid])
-        backend_used = "offline"
+        cbt_response = get_cbt_response(mood)
+        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
+        backend_used = "offline-cbt"
 
     reply = f"{intro}{reply}"
     if prefs.get("memory_opt_in"):
