@@ -3,6 +3,9 @@ document.getElementById("user-input").addEventListener("keypress", function (e) 
     if (e.key === "Enter") sendMessage();
 });
 
+const inputField = document.getElementById("user-input");
+const chatBox = document.getElementById("chat-messages");
+
 function appendMessage(text, sender, mood = null) {
     const msgDiv = document.createElement("div");
     msgDiv.classList.add("message", sender === "user" ? "user-message" : "bot-message", "fade-in");
@@ -20,27 +23,38 @@ function appendMessage(text, sender, mood = null) {
     }
 
     msgDiv.innerHTML = `${text} ${emoji}`;
-    document.getElementById("chat-messages").appendChild(msgDiv);
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-    // Smooth scroll to bottom
-    document.getElementById("chat-messages").scrollTop = document.getElementById("chat-messages").scrollHeight;
+function showTypingAnimation() {
+    const typingDiv = document.createElement("div");
+    typingDiv.classList.add("message", "bot-message", "fade-in");
+    typingDiv.setAttribute("id", "typing");
+
+    typingDiv.innerHTML = `<span class="dots">
+        <span>.</span><span>.</span><span>.</span>
+    </span>`;
+
+    chatBox.appendChild(typingDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function removeTypingAnimation() {
+    const typingDiv = document.getElementById("typing");
+    if (typingDiv) typingDiv.remove();
 }
 
 function sendMessage() {
-    const inputField = document.getElementById("user-input");
     const message = inputField.value.trim();
     if (!message) return;
 
     appendMessage(message, "user");
     inputField.value = "";
+    inputField.disabled = true;
+    document.getElementById("send-btn").disabled = true;
 
-    // Typing simulation
-    const typingDiv = document.createElement("div");
-    typingDiv.classList.add("message", "bot-message", "fade-in");
-    typingDiv.setAttribute("id", "typing");
-    typingDiv.innerHTML = "CareBear is typing...";
-    document.getElementById("chat-messages").appendChild(typingDiv);
-    document.getElementById("chat-messages").scrollTop = document.getElementById("chat-messages").scrollHeight;
+    showTypingAnimation();
 
     fetch("/chat", {
         method: "POST",
@@ -49,18 +63,22 @@ function sendMessage() {
     })
     .then(res => res.json())
     .then(data => {
-        // Adjust delay based on response length (min 0.8s, max 3s)
         const baseDelay = 800;
-        const extraDelay = Math.min(data.response.length * 20, 2200); 
+        const extraDelay = Math.min(data.response.length * 20, 2200);
         const totalDelay = baseDelay + extraDelay;
 
         setTimeout(() => {
-            document.getElementById("typing").remove();
+            removeTypingAnimation();
             appendMessage(data.response, "bot", data.mood);
+            inputField.disabled = false;
+            document.getElementById("send-btn").disabled = false;
+            inputField.focus();
         }, totalDelay);
     })
     .catch(() => {
-        document.getElementById("typing").remove();
+        removeTypingAnimation();
         appendMessage("Sorry, something went wrong.", "bot");
+        inputField.disabled = false;
+        document.getElementById("send-btn").disabled = false;
     });
 }
