@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, session
 from datetime import datetime
 from collections import defaultdict
 from mood_detection import get_mood
-from crisis_detection import check_crisis
+from crisis_detection import check_crisis, get_crisis_message   # ✅ updated import
 from personalization import personalize_response
 from cbt_responses import get_cbt_response
 import os, sys, uuid, random, requests
@@ -60,15 +60,6 @@ def build_system_prompt(last_user_msg, history):
         base += f'\nPrevious message from user: "{last_user_msg}".'
     return base
 
-def crisis_message():
-    return (
-        "I’m really sorry you’re feeling this way. Your safety matters so much. "
-        "If you’re in danger, please call emergency services. 📞\n"
-        "🇬🇧 Samaritans: 116 123 (free, 24/7)\n"
-        "🌍 Crisis Text Line: Text HOME to 741741\n"
-        "🆘 Emergency Services: 999 (UK)\n"
-        "If you feel safe, we can talk more — but please make sure you’re supported right now."
-    )
 
 def goal_nudge(this_sid):
     open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
@@ -122,11 +113,12 @@ def chat():
 
     mood = get_mood(user_message)
 
+    # ✅ Crisis detection updated to use get_crisis_message
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
-        return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
+        return jsonify({"response": get_crisis_message(), "mood": mood, "crisis": True})
     if this_sid in CRISIS_MODE:
-        return jsonify({"response": crisis_message(), "mood": mood, "crisis": True})
+        return jsonify({"response": get_crisis_message(), "mood": mood, "crisis": True})
 
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
     USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
