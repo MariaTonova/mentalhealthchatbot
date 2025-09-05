@@ -51,3 +51,19 @@ def check_crisis(text: str) -> bool:
         return True
 
     return False
+
+
+def get_crisis_message() -> str:
+    """
+    Returns the crisis support message shown to the user
+    if a crisis is detected.
+    """
+    return (
+        "I hear that you’re feeling really overwhelmed right now, and I want you to know you’re not alone. 💙\n\n"
+        "If you ever feel unsafe, please reach out immediately:\n"
+        "📞 Samaritans (UK): 116 123 (free, 24/7)\n"
+        "💬 Crisis Text Line: Text HOME to 741741\n"
+        "🚑 Emergency Services: Dial 999 (UK)\n\n"
+        "Your safety is the most important thing. If you feel okay to continue, we can keep talking here too — "
+        "but please make sure you’re supported right now."
+    )
