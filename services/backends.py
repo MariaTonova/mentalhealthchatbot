@@ -1,173 +1,112 @@
-# services/backends.py
-import os, sys, requests
-from typing import List, Dict
+import os
+from typing import List, Dict, Any
 
-def _flag(name: str, default="1") -> bool:
-    """Env flag helper: treats 1/true/yes/on as True."""
-    return str(os.getenv(name, default)).strip().lower() in {"1", "true", "yes", "on"}
+class OfflineBackend:
+    """Fallback backend using simple pattern matching"""
+    
+    def reply(self, history: List[Dict], user_message: str, system_prompt: str) -> str:
+        # Simple response generation based on keywords
+        user_lower = user_message.lower()
+        
+        if any(word in user_lower for word in ['hello', 'hi', 'hey']):
+            return "It's good to hear from you! How are you feeling today? "
+        elif any(word in user_lower for word in ['thank', 'thanks']):
+            return "You're very welcome! Is there anything else on your mind? "
+        elif any(word in user_lower for word in ['bye', 'goodbye']):
+            return "Take care of yourself, and remember I'm here whenever you need to talk. "
+        elif '?' in user_message:
+            return "That's a thoughtful question. Can you tell me more about what's behind it? "
+        else:
+            return "I hear you. What else would you like to share? "
 
-# -------------------- Base interface --------------------
-class Backend:
-    def reply(self, history: List[Dict[str, str]], user: str, system: str) -> str:
-        raise NotImplementedError
-
-# -------------------- OpenAI GPT (PRIMARY) --------------------
-class OpenAIBackend(Backend):
+class OpenAIBackend:
+    """OpenAI GPT backend (updated for new API)"""
+    
     def __init__(self):
-        import openai  # compatible with openai==0.28.1
-        key = os.getenv("OPENAI_API_KEY")
-        if not key:
-            raise RuntimeError("OPENAI_API_KEY not set")
-        openai.api_key = key
-        self.openai = openai
-        print("✅ OpenAI GPT backend ready (PRIMARY)", flush=True)
-
-    def reply(self, history, user, system):
-        messages = [{"role": "system", "content": system}, *history, {"role": "user", "content": user}]
+        from openai import OpenAI
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    
+    def reply(self, history: List[Dict], user_message: str, system_prompt: str) -> str:
         try:
-            out = self.openai.ChatCompletion.create(
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend([{"role": h["role"], "content": h["content"]} for h in history[-5:]])
+            messages.append({"role": "user", "content": user_message})
+            
+            response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
-                temperature=0.7,
-                max_tokens=180,
-                presence_penalty=0.4,
-                frequency_penalty=0.6,
+                max_tokens=150,
+                temperature=0.7
             )
-            return out.choices[0].message["content"].strip()
+            return response.choices[0].message.content.strip()
         except Exception as e:
-            print("⚠️ OpenAI error in backend:", e, file=sys.stderr, flush=True)
-            raise
+            print(f"OpenAI error: {e}")
+            return None
 
-# -------------------- Hugging Face (SECOND) --------------------
-class HuggingFaceBackend(Backend):
-    def __init__(self):
-        key = os.getenv("HF_API_KEY")
-        if not key:
-            raise RuntimeError("HF_API_KEY not set")
-        self.api_key = key
-        # Use a better conversational model
-        self.model_url = os.getenv("HF_MODEL_URL", "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium")
-        print("✅ Hugging Face backend ready (SECOND)", flush=True)
-
-    def reply(self, history, user, system):
-        try:
-            # Format conversation for DialoGPT-style models on HF
-            turns = []
-            for h in history[-6:]:
-                role = "User" if h["role"] == "user" else "Bot"
-                turns.append(f"{role}: {h['content']}")
-            turns.append(f"User: {user}")
-            prompt = "\n".join(turns) + "\nBot:"
-
-            headers = {"Authorization": f"Bearer {self.api_key}"}
-            payload = {
-                "inputs": prompt,
-                "parameters": {
-                    "max_new_tokens": 120,
-                    "temperature": 0.7,
-                    "do_sample": True,
-                    "top_p": 0.92,
-                    "return_full_text": False
-                }
-            }
-            
-            response = requests.post(self.model_url, headers=headers, json=payload, timeout=20)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0:
-                    text = result[0].get("generated_text", "").strip()
-                    # Clean up the response - remove any remaining "Bot:" prefixes
-                    text = text.replace("Bot:", "").strip()
-                    return text if text else "I'm here with you. What would you like to talk about?"
-                    
-            print(f"⚠️ HF API error: {response.status_code} - {response.text}", file=sys.stderr, flush=True)
-            raise Exception(f"HF API returned status {response.status_code}")
-            
-        except Exception as e:
-            print("⚠️ Hugging Face error in backend:", e, file=sys.stderr, flush=True)
-            raise
-
-# -------------------- DialoGPT Local (THIRD) --------------------
-class DialoGPTBackend(Backend):
-    def __init__(self):
-        print("💬 Loading DialoGPT local backend…", flush=True)
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        import torch  # noqa: F401
-
-        model_id = os.getenv("DIALOGPT_MODEL_ID", "microsoft/DialoGPT-medium")
-        self.tok = AutoTokenizer.from_pretrained(model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(model_id)
-        self.model.eval()
-        print(f"✅ DialoGPT local ready (THIRD): {model_id}", flush=True)
-
-    def reply(self, history, user, system):
-        # Short, chatty formatting compatible with DialoGPT
-        turns = []
-        for h in history[-6:]:
-            role = "User" if h["role"] == "user" else "CareBear"
-            turns.append(f"{role}: {h['content']}")
-        turns.append(f"User: {user}")
-        prompt = "\n".join(turns) + "\nCareBear:"
-
-        import torch
-        with torch.no_grad():
-            ids = self.tok.encode(prompt, return_tensors="pt")
-            out = self.model.generate(
-                ids,
-                max_new_tokens=120,
-                do_sample=True,
-                top_p=0.92,
-                temperature=0.7,
-                pad_token_id=self.tok.eos_token_id,
-                eos_token_id=self.tok.eos_token_id,
-            )
-        text = self.tok.decode(out[0], skip_special_tokens=True)
-        # Only return the latest CareBear turn
-        return text.split("\nCareBear:")[-1].split("\nUser:")[0].strip()
-
-# -------------------- Offline (FINAL FALLBACK) --------------------
-class OfflineBackend(Backend):
-    def reply(self, history, user, system):
-        return "I'm here with you. What feels most important to talk about right now?"
-
-# -------------------- Loader with New Priority Order --------------------
-def get_backend() -> Backend:
-    """
-    NEW PRIORITY ORDER:
-    1. OpenAI GPT (FIRST - if API key exists)
-    2. Hugging Face API (SECOND - if API key exists) 
-    3. DialoGPT Local (THIRD - if enabled and dependencies available)
-    4. Offline (FINAL fallback)
-    """
+class HuggingFaceBackend:
+    """DialoGPT backend for conversational AI"""
     
-    # 1. Try OpenAI first (PRIMARY)
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key:
+    def __init__(self):
         try:
-            print("→ Selecting OpenAI GPT (primary)", flush=True)
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
+            
+            model_name = "microsoft/DialoGPT-small"
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(model_name)
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        except Exception as e:
+            print(f"Failed to load HuggingFace model: {e}")
+            raise
+    
+    def reply(self, history: List[Dict], user_message: str, system_prompt: str) -> str:
+        try:
+            # Build conversation context
+            context = ""
+            for h in history[-3:]:  # Use last 3 exchanges
+                if h["role"] == "user":
+                    context += f"User: {h['content']}\n"
+                else:
+                    context += f"Bot: {h['content']}\n"
+            context += f"User: {user_message}\nBot:"
+            
+            # Generate response
+            inputs = self.tokenizer.encode(context, return_tensors="pt", max_length=512, truncation=True)
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    inputs,
+                    max_length=inputs.shape[1] + 50,
+                    temperature=0.8,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    do_sample=True,
+                    top_p=0.9
+                )
+            
+            response = self.tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True)
+            return response.strip() if response else None
+        except Exception as e:
+            print(f"HuggingFace error: {e}")
+            return None
+
+def get_backend():
+    """Initialize the appropriate backend based on available resources"""
+    
+    # Try OpenAI first if API key is available
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            print("Attempting to use OpenAI backend...")
             return OpenAIBackend()
         except Exception as e:
-            print("❌ OpenAI GPT load failed:", e, file=sys.stderr, flush=True)
-
-    # 2. Try Hugging Face API second
-    hf_key = os.getenv("HF_API_KEY")
-    if hf_key:
-        try:
-            print("→ Selecting Hugging Face API (second)", flush=True)
-            return HuggingFaceBackend()
-        except Exception as e:
-            print("❌ Hugging Face API load failed:", e, file=sys.stderr, flush=True)
-
-    # 3. Try DialoGPT local third (if enabled)
-    use_dialogpt = _flag("USE_DIALOGPT", default="0")  # default OFF since it requires heavy dependencies
-    if use_dialogpt:
-        try:
-            print("→ Selecting DialoGPT local (third)", flush=True)
-            return DialoGPTBackend()
-        except Exception as e:
-            print("❌ DialoGPT local load failed:", e, file=sys.stderr, flush=True)
-
-    # 4. Final fallback
-    print("→ Selecting Offline backend (final fallback)", flush=True)
+            print(f"OpenAI backend failed: {e}")
+    
+    # Try HuggingFace/DialoGPT
+    try:
+        print("Attempting to use HuggingFace backend...")
+        return HuggingFaceBackend()
+    except Exception as e:
+        print(f"HuggingFace backend failed: {e}")
+    
+    # Fallback to offline backend
+    print("Using offline backend...")
     return OfflineBackend()
