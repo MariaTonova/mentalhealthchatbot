@@ -4,25 +4,25 @@ CBT_RESPONSES = {
     "sad": [
         {
             "message": "I hear how heavy things feel right now. You’re not alone in this 💛",
-            "reason": "Grounding helps shift focus from painful emotions to the present moment.",
-            "follow_up": "Would you like to try a grounding exercise together?"
+            "reason": "Empathetic validation builds trust and emotional safety.",
+            "follow_up": "Would you like to try a small exercise together?"
         },
         {
             "message": "That sounds really hard. I’m here with you.",
-            "reason": "Empathetic validation builds trust and emotional safety.",
-            "follow_up": "What's been weighing on your mind the most today?"
+            "reason": "Validation helps people feel understood and less isolated.",
+            "follow_up": "I can guide you through a short technique — would that help?"
         }
     ],
     "anxious": [
         {
             "message": "I can sense the worry in your words. Let’s slow things down together.",
             "reason": "Slowing down helps regulate breathing and reduce anxious energy.",
-            "follow_up": "Shall we try the 5-4-3-2-1 grounding technique?"
+            "follow_up": "Want to try a calming technique together?"
         },
         {
             "message": "Anxiety can feel intense. I’m here to help you find calm.",
             "reason": "Reassurance helps the nervous system feel safe.",
-            "follow_up": "Can you take one deep breath with me right now?"
+            "follow_up": "Shall I guide you through a quick exercise?"
         }
     ],
     "happy": [
@@ -41,15 +41,15 @@ CBT_RESPONSES = {
         {
             "message": "I’m here with you. Tell me more about what’s been on your mind.",
             "reason": "Open questions encourage self-expression.",
-            "follow_up": "Anything you'd like to focus on today?"
+            "follow_up": "Would you like to try a short technique together?"
         }
     ]
 }
 
-# Special response for grounding
+# 🌱 Grounding Exercise
 GROUNDING_RESPONSE = {
     "message": (
-        "Great 🌱 Let’s try the 5-4-3-2-1 grounding technique:\n\n"
+        "Let’s try the 5-4-3-2-1 grounding technique 🌱:\n\n"
         "• 5 things you can see 👀\n"
         "• 4 things you can touch ✋\n"
         "• 3 things you can hear 👂\n"
@@ -58,25 +58,73 @@ GROUNDING_RESPONSE = {
         "Take your time, and let me know how you feel after."
     ),
     "reason": "Grounding brings attention back to the present and reduces anxiety.",
-    "follow_up": "Would you like to try another exercise afterwards?"
+    "follow_up": "Would you like to try breathing or reframing next?"
 }
+
+# 🌬️ Paced Breathing Exercise
+BREATHING_RESPONSE = {
+    "message": (
+        "Alright, let’s try paced breathing together 🌬️:\n\n"
+        "• Inhale slowly for 4 seconds 🫁\n"
+        "• Hold your breath for 4 seconds ✋\n"
+        "• Exhale gently for 6 seconds 😮‍💨\n\n"
+        "Repeat this cycle 3–4 times. It helps calm the nervous system."
+    ),
+    "reason": "Paced breathing activates the parasympathetic system to reduce stress.",
+    "follow_up": "Would you like to try grounding or reframing next?"
+}
+
+# 🪞 Thought Reframing Exercise
+REFRAMING_RESPONSE = {
+    "message": (
+        "Let’s practice reframing 🪞. Think of a difficult thought you’ve had, "
+        "and let’s look at it differently:\n\n"
+        "• What evidence supports this thought?\n"
+        "• What evidence goes against it?\n"
+        "• If a friend had this thought, what would you tell them?\n"
+        "• What’s a more balanced way of looking at this?\n\n"
+        "This helps soften harsh self-talk into something kinder."
+    ),
+    "reason": "Reframing challenges unhelpful thinking and creates balance.",
+    "follow_up": "Would you like me to walk you through another example?"
+}
+
+# Pool of all structured CBT techniques
+CBT_TECHNIQUES = [GROUNDING_RESPONSE, BREATHING_RESPONSE, REFRAMING_RESPONSE]
 
 def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = "") -> dict:
     """
-    Returns a CBT-style response with mood-based and intent-based logic.
+    Returns a CBT-style response:
+    - If user explicitly asks for grounding, breathing, or reframing → give that.
+    - If user says 'yes' after bot offered → repeat the suggested technique.
+    - Else → random supportive mood response, with a chance of offering a random CBT technique.
     """
     text = (user_message or "").lower().strip()
     last_bot = (last_bot_message or "").lower()
 
-    # If user explicitly asks for grounding
-    if any(keyword in text for keyword in ["grounding", "exercise", "5-4-3-2-1"]):
+    # ✅ Explicit technique requests
+    if any(keyword in text for keyword in ["grounding", "5-4-3-2-1", "exercise"]):
         return GROUNDING_RESPONSE
+    if any(keyword in text for keyword in ["breathe", "breathing", "paced breathing"]):
+        return BREATHING_RESPONSE
+    if any(keyword in text for keyword in ["reframe", "reframing", "thoughts", "thinking"]):
+        return REFRAMING_RESPONSE
 
-    # If user agrees to grounding after being offered
+    # ✅ Yes-intent detection
     if text in ["yes", "sure", "okay", "alright", "let’s do it"]:
         if "grounding" in last_bot:
             return GROUNDING_RESPONSE
+        if "breathing" in last_bot:
+            return BREATHING_RESPONSE
+        if "reframe" in last_bot or "thought" in last_bot:
+            return REFRAMING_RESPONSE
 
-    # Default: choose a mood-based response
+    # ✅ Default: mood-based + occasional random CBT technique
     responses = CBT_RESPONSES.get(mood.lower(), CBT_RESPONSES["neutral"])
-    return random.choice(responses)
+    chosen = random.choice(responses)
+
+    # 40% chance of offering a structured CBT technique even if not asked
+    if random.random() < 0.4:
+        return random.choice(CBT_TECHNIQUES)
+
+    return chosen
