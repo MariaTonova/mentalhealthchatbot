@@ -1,130 +1,124 @@
 import random
 
-CBT_RESPONSES = {
-    "sad": [
-        {
-            "message": "I hear how heavy things feel right now. You’re not alone in this 💛",
-            "reason": "Empathetic validation builds trust and emotional safety.",
-            "follow_up": "Would you like to try a small exercise together?"
-        },
-        {
-            "message": "That sounds really hard. I’m here with you.",
-            "reason": "Validation helps people feel understood and less isolated.",
-            "follow_up": "I can guide you through a short technique — would that help?"
+# Store exercise state in memory (in practice, move this to USER_HISTORY or a dedicated dict in main.py)
+EXERCISE_STATE = {}
+
+def start_grounding(sid):
+    EXERCISE_STATE[sid] = {"exercise": "grounding", "step": 1}
+    return {
+        "message": "Let’s begin grounding 🌱. Can you name 5 things you see around you?",
+        "reason": "Grounding helps by shifting attention to the present.",
+        "follow_up": None
+    }
+
+def continue_grounding(sid):
+    step_prompts = {
+        2: "Great 👀. Now, can you name 4 things you can touch ✋?",
+        3: "Nice work! Now, 3 things you can hear 👂?",
+        4: "Good. Now, 2 things you can smell 👃?",
+        5: "Almost there! Finally, 1 thing you can taste 👅?",
+    }
+    step = EXERCISE_STATE[sid]["step"]
+    if step in step_prompts:
+        EXERCISE_STATE[sid]["step"] += 1
+        return {"message": step_prompts[step], "reason": "Progressing grounding.", "follow_up": None}
+    else:
+        EXERCISE_STATE.pop(sid, None)
+        return {
+            "message": "Excellent 🌟 You’ve completed the grounding exercise. How do you feel now?",
+            "reason": "Closing grounding.",
+            "follow_up": "Would you like to try breathing or reframing next?"
         }
-    ],
-    "anxious": [
-        {
-            "message": "I can sense the worry in your words. Let’s slow things down together.",
-            "reason": "Slowing down helps regulate breathing and reduce anxious energy.",
-            "follow_up": "Want to try a calming technique together?"
-        },
-        {
-            "message": "Anxiety can feel intense. I’m here to help you find calm.",
-            "reason": "Reassurance helps the nervous system feel safe.",
-            "follow_up": "Shall I guide you through a quick exercise?"
+
+def start_breathing(sid):
+    EXERCISE_STATE[sid] = {"exercise": "breathing", "step": 1}
+    return {
+        "message": "Let’s practice paced breathing 🌬️. Inhale slowly for 4 seconds 🫁.",
+        "reason": "Paced breathing calms the nervous system.",
+        "follow_up": None
+    }
+
+def continue_breathing(sid):
+    step_prompts = {
+        2: "Now, hold your breath for 4 seconds ✋.",
+        3: "Exhale gently for 6 seconds 😮‍💨.",
+        4: "Repeat this cycle 2–3 times. How do you feel after?",
+    }
+    step = EXERCISE_STATE[sid]["step"]
+    if step in step_prompts:
+        EXERCISE_STATE[sid]["step"] += 1
+        return {"message": step_prompts[step], "reason": "Progressing breathing.", "follow_up": None}
+    else:
+        EXERCISE_STATE.pop(sid, None)
+        return {
+            "message": "Well done 🌟 You’ve completed the breathing exercise.",
+            "reason": "Closing breathing.",
+            "follow_up": "Would you like to try grounding or reframing next?"
         }
-    ],
-    "happy": [
-        {
-            "message": "That’s wonderful to hear! 🌟",
-            "reason": "Celebrating positive moments reinforces wellbeing.",
-            "follow_up": "What made your day feel good?"
-        },
-        {
-            "message": "I’m so glad you’re feeling this way!",
-            "reason": "Positive reinforcement helps strengthen good moods.",
-            "follow_up": "Anything you’d like to hold onto or share more about?"
+
+def start_reframing(sid):
+    EXERCISE_STATE[sid] = {"exercise": "reframing", "step": 1}
+    return {
+        "message": "Let’s reframe a thought 🪞. Can you share a difficult thought you’ve had?",
+        "reason": "Reframing helps challenge negative thinking.",
+        "follow_up": None
+    }
+
+def continue_reframing(sid):
+    step_prompts = {
+        2: "Thanks for sharing 🙏. What evidence supports this thought?",
+        3: "And what evidence goes against it?",
+        4: "If a friend had this thought, what would you tell them?",
+        5: "What’s a more balanced way of looking at this?",
+    }
+    step = EXERCISE_STATE[sid]["step"]
+    if step in step_prompts:
+        EXERCISE_STATE[sid]["step"] += 1
+        return {"message": step_prompts[step], "reason": "Progressing reframing.", "follow_up": None}
+    else:
+        EXERCISE_STATE.pop(sid, None)
+        return {
+            "message": "Great work 🌟 You’ve completed reframing. How does that new perspective feel?",
+            "reason": "Closing reframing.",
+            "follow_up": "Would you like to try grounding or breathing next?"
         }
-    ],
-    "neutral": [
-        {
-            "message": "I’m here with you. Tell me more about what’s been on your mind.",
-            "reason": "Open questions encourage self-expression.",
-            "follow_up": "Would you like to try a short technique together?"
-        }
-    ]
-}
 
-# 🌱 Grounding Exercise
-GROUNDING_RESPONSE = {
-    "message": (
-        "Let’s try the 5-4-3-2-1 grounding technique 🌱:\n\n"
-        "• 5 things you can see 👀\n"
-        "• 4 things you can touch ✋\n"
-        "• 3 things you can hear 👂\n"
-        "• 2 things you can smell 👃\n"
-        "• 1 thing you can taste 👅\n\n"
-        "Take your time, and let me know how you feel after."
-    ),
-    "reason": "Grounding brings attention back to the present and reduces anxiety.",
-    "follow_up": "Would you like to try breathing or reframing next?"
-}
-
-# 🌬️ Paced Breathing Exercise
-BREATHING_RESPONSE = {
-    "message": (
-        "Alright, let’s try paced breathing together 🌬️:\n\n"
-        "• Inhale slowly for 4 seconds 🫁\n"
-        "• Hold your breath for 4 seconds ✋\n"
-        "• Exhale gently for 6 seconds 😮‍💨\n\n"
-        "Repeat this cycle 3–4 times. It helps calm the nervous system."
-    ),
-    "reason": "Paced breathing activates the parasympathetic system to reduce stress.",
-    "follow_up": "Would you like to try grounding or reframing next?"
-}
-
-# 🪞 Thought Reframing Exercise
-REFRAMING_RESPONSE = {
-    "message": (
-        "Let’s practice reframing 🪞. Think of a difficult thought you’ve had, "
-        "and let’s look at it differently:\n\n"
-        "• What evidence supports this thought?\n"
-        "• What evidence goes against it?\n"
-        "• If a friend had this thought, what would you tell them?\n"
-        "• What’s a more balanced way of looking at this?\n\n"
-        "This helps soften harsh self-talk into something kinder."
-    ),
-    "reason": "Reframing challenges unhelpful thinking and creates balance.",
-    "follow_up": "Would you like me to walk you through another example?"
-}
-
-# Pool of all structured CBT techniques
-CBT_TECHNIQUES = [GROUNDING_RESPONSE, BREATHING_RESPONSE, REFRAMING_RESPONSE]
-
-def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = "") -> dict:
+def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = "", sid: str = None) -> dict:
     """
-    Returns a CBT-style response:
-    - If user explicitly asks for grounding, breathing, or reframing → give that.
-    - If user says 'yes' after bot offered → repeat the suggested technique.
-    - Else → random supportive mood response, with a chance of offering a random CBT technique.
+    Step-by-step CBT response system.
+    - Tracks state of ongoing exercises (grounding, breathing, reframing).
+    - Handles explicit requests and yes-intent.
     """
     text = (user_message or "").lower().strip()
     last_bot = (last_bot_message or "").lower()
 
-    # ✅ Explicit technique requests
-    if any(keyword in text for keyword in ["grounding", "5-4-3-2-1", "exercise"]):
-        return GROUNDING_RESPONSE
-    if any(keyword in text for keyword in ["breathe", "breathing", "paced breathing"]):
-        return BREATHING_RESPONSE
-    if any(keyword in text for keyword in ["reframe", "reframing", "thoughts", "thinking"]):
-        return REFRAMING_RESPONSE
+    # If user is in the middle of an exercise
+    if sid in EXERCISE_STATE:
+        ex = EXERCISE_STATE[sid]["exercise"]
+        if ex == "grounding":
+            return continue_grounding(sid)
+        if ex == "breathing":
+            return continue_breathing(sid)
+        if ex == "reframing":
+            return continue_reframing(sid)
 
-    # ✅ Yes-intent detection
+    # Explicit start requests
+    if any(keyword in text for keyword in ["grounding", "5-4-3-2-1"]):
+        return start_grounding(sid)
+    if any(keyword in text for keyword in ["breathe", "breathing", "paced breathing"]):
+        return start_breathing(sid)
+    if any(keyword in text for keyword in ["reframe", "reframing", "thought"]):
+        return start_reframing(sid)
+
+    # Yes-intent (continue last suggested exercise)
     if text in ["yes", "sure", "okay", "alright", "let’s do it"]:
         if "grounding" in last_bot:
-            return GROUNDING_RESPONSE
+            return start_grounding(sid)
         if "breathing" in last_bot:
-            return BREATHING_RESPONSE
+            return start_breathing(sid)
         if "reframe" in last_bot or "thought" in last_bot:
-            return REFRAMING_RESPONSE
+            return start_reframing(sid)
 
-    # ✅ Default: mood-based + occasional random CBT technique
+    # Default: fallback to mood-based supportive response
     responses = CBT_RESPONSES.get(mood.lower(), CBT_RESPONSES["neutral"])
-    chosen = random.choice(responses)
-
-    # 40% chance of offering a structured CBT technique even if not asked
-    if random.random() < 0.4:
-        return random.choice(CBT_TECHNIQUES)
-
-    return chosen
+    return random.choice(responses)
