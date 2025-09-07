@@ -6,7 +6,7 @@ from crisis_detection import check_crisis, get_crisis_message
 from personalization import personalize_response
 from cbt_responses import get_cbt_response
 from services.backends import get_backend
-import os, uuid
+import os, uuid, json
 
 # ---------------- Flask App ----------------
 app = Flask(__name__)
@@ -22,6 +22,8 @@ USER_NOTES = defaultdict(list)
 USER_GOALS = defaultdict(list)
 USER_HISTORY = defaultdict(list)
 CRISIS_MODE = set()
+
+LOG_FILE = os.getenv("CHAT_LOG_FILE", "chat_logs.jsonl")
 
 # ---------------- Helpers ----------------
 def sid():
@@ -50,6 +52,23 @@ def goal_nudge(this_sid):
         return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?"
     return ""
 
+def log_interaction(this_sid, user_message, bot_reply, mood, crisis=False, backend_used="unknown"):
+    """Append conversation turn to JSONL log file"""
+    log_entry = {
+        "sid": this_sid,
+        "timestamp": datetime.utcnow().isoformat(),
+        "user_message": user_message,
+        "bot_reply": bot_reply,
+        "mood": mood,
+        "crisis": crisis,
+        "backend": backend_used
+    }
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    except Exception as e:
+        print(f"⚠️ Logging error: {e}", flush=True)
+
 # ---------------- Routes ----------------
 @app.route("/")
 def home():
@@ -71,15 +90,19 @@ def chat():
     # Crisis detection
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
-        return jsonify({"response": get_crisis_message(), "mood": mood, "crisis": True})
+        bot_reply = get_crisis_message()
+        log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
+        return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
     if this_sid in CRISIS_MODE:
-        return jsonify({"response": get_crisis_message(), "mood": mood, "crisis": True})
+        bot_reply = get_crisis_message()
+        log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
+        return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
 
-    # Update conversation history
+    # Update history
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
     USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
 
-    # Store notes if user opted in
+    # Store notes if memory enabled
     if prefs.get("memory_opt_in"):
         USER_NOTES[this_sid].append({
             "ts": datetime.utcnow().isoformat(),
@@ -89,18 +112,17 @@ def chat():
 
     # Personalized intro
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
-    
+
     # Build system prompt
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
                     f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
 
-    # Generate response using backend
+    # Backend reply
     reply = None
     backend_used = "unknown"
 
     try:
         reply = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
-        # Determine backend type
         if hasattr(backend, '__class__'):
             backend_name = backend.__class__.__name__
             if 'DialoGPT' in backend_name:
@@ -111,35 +133,33 @@ def chat():
                 backend_used = "offline"
     except Exception as e:
         print(f"❌ Backend error: {e}", flush=True)
-        # Fallback to CBT response
         last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
         cbt_response = get_cbt_response(mood, user_message, last_bot_message)
         reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
         backend_used = "cbt-fallback"
 
-    # If still no reply, ensure fallback
     if not reply:
         last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
         cbt_response = get_cbt_response(mood, user_message, last_bot_message)
         reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
         backend_used = "cbt-fallback"
 
-    # Add personalized intro
+    # Add personalization + goals
     reply = f"{intro}{reply}"
-    
-    # Add goal nudge if memory enabled
     if prefs.get("memory_opt_in"):
         reply += goal_nudge(this_sid)
 
-    # Save assistant response
+    # Save history
     USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
+
+    # Log interaction
+    log_interaction(this_sid, user_message, reply, mood, crisis=False, backend_used=backend_used)
 
     return jsonify({"response": reply, "mood": mood, "mode": backend_used})
 
 @app.route("/status")
 def status():
-    """Return current backend status"""
     backend_type = "unknown"
     if hasattr(backend, '__class__'):
         backend_name = backend.__class__.__name__
@@ -151,14 +171,11 @@ def status():
             backend_type = "dialogpt"
         else:
             backend_type = "offline"
-    
     return jsonify({"mode": backend_type})
 
 @app.route("/preferences", methods=["GET", "POST"])
 def preferences():
-    """Handle user preference updates"""
     this_sid = sid()
-    
     if request.method == "POST":
         prefs = request.get_json() or {}
         USER_PREFS[this_sid] = {
@@ -166,14 +183,11 @@ def preferences():
             "memory_opt_in": prefs.get("memory_opt_in", False)
         }
         return jsonify({"status": "updated", "preferences": USER_PREFS[this_sid]})
-    
     return jsonify(USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False}))
 
 @app.route("/goals", methods=["GET", "POST"])
 def goals():
-    """Handle goal setting and tracking"""
     this_sid = sid()
-    
     if request.method == "POST":
         goal_data = request.get_json() or {}
         if goal_data.get("goal"):
@@ -183,12 +197,10 @@ def goals():
                 "done": False
             })
         return jsonify({"status": "added", "goals": USER_GOALS[this_sid]})
-    
     return jsonify(USER_GOALS[this_sid])
 
 @app.route("/clear_crisis", methods=["POST"])
 def clear_crisis():
-    """Allow user to exit crisis mode if they're feeling better"""
     this_sid = sid()
     if this_sid in CRISIS_MODE:
         CRISIS_MODE.remove(this_sid)
