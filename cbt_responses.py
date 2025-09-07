@@ -46,7 +46,32 @@ CBT_RESPONSES = {
     ]
 }
 
-def get_cbt_response(mood: str) -> dict:
-    """Returns a random CBT-style message dict: {message, reason, follow_up}."""
+# Explicit grounding exercise response
+GROUNDING_RESPONSE = {
+    "message": (
+        "Let's try the 5-4-3-2-1 grounding technique 🌱\n"
+        "• Look around and name 5 things you can see 👀\n"
+        "• 4 things you can touch ✋\n"
+        "• 3 things you can hear 👂\n"
+        "• 2 things you can smell 👃\n"
+        "• 1 thing you can taste 👅\n\n"
+        "Take your time, and let me know how you feel after."
+    ),
+    "reason": "Grounding brings attention back to the present and helps calm overwhelming feelings.",
+    "follow_up": "Would you like to try another exercise afterwards?"
+}
+
+def get_cbt_response(mood: str, user_message: str = "") -> dict:
+    """
+    Returns a CBT-style message dict: {message, reason, follow_up}.
+    Prioritises grounding exercise if detected in user message.
+    """
+    text = user_message.lower()
+
+    # Check for explicit grounding intent
+    if any(word in text for word in ["grounding", "exercise", "5-4-3-2-1"]):
+        return GROUNDING_RESPONSE
+
+    # Otherwise return a mood-based response
     responses = CBT_RESPONSES.get(mood.lower(), CBT_RESPONSES["neutral"])
     return random.choice(responses)
