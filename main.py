@@ -17,6 +17,7 @@ print("🚀 Initializing backend...", flush=True)
 backend = get_backend()
 print("✅ Backend ready", flush=True)
 
+# ---------------- In-memory stores ----------------
 USER_PREFS = {}
 USER_NOTES = defaultdict(list)
 USER_GOALS = defaultdict(list)
@@ -53,7 +54,6 @@ def goal_nudge(this_sid):
     return ""
 
 def log_interaction(this_sid, user_message, bot_reply, mood, crisis=False, backend_used="unknown"):
-    """Append conversation turn to JSONL log file"""
     log_entry = {
         "sid": this_sid,
         "timestamp": datetime.utcnow().isoformat(),
@@ -210,6 +210,38 @@ def clear_crisis():
         })
     return jsonify({"status": "not_in_crisis"})
 
+@app.route("/session-summary", methods=["GET"])
+def session_summary():
+    """Return a formatted session summary as a CareBear-style response."""
+    this_sid = sid()
+    notes = USER_NOTES.get(this_sid, [])
+    goals = USER_GOALS.get(this_sid, [])
+    history = USER_HISTORY.get(this_sid, [])
+
+    mood_summary = notes[-1]["mood"] if notes else "not recorded"
+    last_goal = goals[-1]["goal"] if goals else "no goals set yet"
+    last_user_msg = history[-2]["content"] if len(history) >= 2 else "nothing shared yet"
+
+    formatted_summary = (
+        f"Here’s your session summary 💡\n\n"
+        f"- Last mood detected: **{mood_summary}**\n"
+        f"- Last thing you shared: “{last_user_msg}”\n"
+        f"- Current goal: {last_goal}\n\n"
+        "Would you like me to suggest a next step? 🌱"
+    )
+
+    return jsonify({
+        "response": formatted_summary,
+        "mood": mood_summary,
+        "summary": {
+            "notes": notes[-5:],
+            "goals": goals,
+            "history": history[-5:]
+        }
+    })
+
+# ---------------- Run ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
