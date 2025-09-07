@@ -1,5 +1,6 @@
 import random
 
+# Existing CBT_RESPONSES (as in your code above)
 CBT_RESPONSES = {
     "sad": [
         {
@@ -46,32 +47,40 @@ CBT_RESPONSES = {
     ]
 }
 
-# Explicit grounding exercise response
+# Special grounding response
 GROUNDING_RESPONSE = {
     "message": (
-        "Let's try the 5-4-3-2-1 grounding technique 🌱\n"
-        "• Look around and name 5 things you can see 👀\n"
+        "Great 🌱 Let’s try the 5-4-3-2-1 grounding technique:\n"
+        "• 5 things you can see 👀\n"
         "• 4 things you can touch ✋\n"
         "• 3 things you can hear 👂\n"
         "• 2 things you can smell 👃\n"
         "• 1 thing you can taste 👅\n\n"
         "Take your time, and let me know how you feel after."
     ),
-    "reason": "Grounding brings attention back to the present and helps calm overwhelming feelings.",
+    "reason": "Grounding brings attention back to the present and reduces anxiety.",
     "follow_up": "Would you like to try another exercise afterwards?"
 }
 
-def get_cbt_response(mood: str, user_message: str = "") -> dict:
+def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = "") -> dict:
     """
     Returns a CBT-style message dict: {message, reason, follow_up}.
-    Prioritises grounding exercise if detected in user message.
+    - If user explicitly types 'grounding' or 'exercise' → grounding response.
+    - If user says 'yes' and last bot message offered grounding → grounding response.
+    - Else → mood-based fallback.
     """
-    text = user_message.lower()
+    text = user_message.lower().strip()
 
-    # Check for explicit grounding intent
-    if any(word in text for word in ["grounding", "exercise", "5-4-3-2-1"]):
+    # Detect explicit grounding request
+    if any(keyword in text for keyword in ["grounding", "exercise", "5-4-3-2-1"]):
         return GROUNDING_RESPONSE
 
-    # Otherwise return a mood-based response
+    # Detect "yes" to previous grounding offer
+    if text in ["yes", "sure", "okay", "alright", "let’s do it"]:
+        if "grounding" in last_bot_message.lower():
+            return GROUNDING_RESPONSE
+
+    # Default mood-based response
     responses = CBT_RESPONSES.get(mood.lower(), CBT_RESPONSES["neutral"])
     return random.choice(responses)
+
