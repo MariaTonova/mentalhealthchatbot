@@ -134,14 +134,14 @@ def chat():
     except Exception as e:
         print(f"❌ Backend error: {e}", flush=True)
         last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
-        cbt_response = get_cbt_response(mood, user_message, last_bot_message)
-        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
+        cbt_response = get_cbt_response(mood, user_message, last_bot_message, sid=this_sid)
+        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '') or ''}".strip()
         backend_used = "cbt-fallback"
 
     if not reply:
         last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
-        cbt_response = get_cbt_response(mood, user_message, last_bot_message)
-        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
+        cbt_response = get_cbt_response(mood, user_message, last_bot_message, sid=this_sid)
+        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '') or ''}".strip()
         backend_used = "cbt-fallback"
 
     # Add personalization + goals
@@ -213,4 +213,3 @@ def clear_crisis():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
