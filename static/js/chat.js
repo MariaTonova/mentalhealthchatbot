@@ -61,7 +61,12 @@ function sendMessage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message })
     })
-    .then(res => res.json())
+    .then(async (res) => {
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+        return res.json();
+    })
     .then(data => {
         const baseDelay = 800;
         const extraDelay = Math.min(data.response.length * 20, 2200);
@@ -75,10 +80,27 @@ function sendMessage() {
             inputField.focus();
         }, totalDelay);
     })
-    .catch(() => {
+    .catch(err => {
+        console.error("Chat fetch error:", err);
         removeTypingAnimation();
-        appendMessage("Sorry, something went wrong.", "bot");
+        appendMessage("⚠️ Sorry, I couldn’t process that. Let’s try again 💛", "bot");
         inputField.disabled = false;
         document.getElementById("send-btn").disabled = false;
     });
 }
+
+// ---------------- Summary Button ----------------
+document.getElementById("summary-btn").addEventListener("click", () => {
+    showTypingAnimation();
+
+    fetch("/session-summary")
+        .then(res => res.json())
+        .then(data => {
+            removeTypingAnimation();
+            appendMessage(data.response, "bot", data.mood);
+        })
+        .catch(() => {
+            removeTypingAnimation();
+            appendMessage("⚠️ Sorry, I couldn’t fetch the summary right now.", "bot");
+        });
+});
