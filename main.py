@@ -211,25 +211,24 @@ def session_summary():
     goals = USER_GOALS.get(this_sid, [])
     history = USER_HISTORY.get(this_sid, [])
 
-    mood_summary = notes[-1]["mood"] if notes else "not recorded"
-    last_goal = goals[-1]["goal"] if goals else "no goals set yet"
-    last_user_msg = history[-2]["content"] if len(history) >= 2 else "nothing shared yet"
+    mood_trend = [n["mood"] for n in notes][-5:] if notes else ["neutral"]
+    highlights = [n["point"] for n in notes][-5:] if notes else ["No highlights yet"]
+    active_goals = [g["goal"] for g in goals if not g["done"]]
 
-    formatted_summary = (
-        f"Here’s your session summary 💡\n\n"
-        f"- Last mood detected: **{mood_summary}**\n"
-        f"- Last thing you shared: “{last_user_msg}”\n"
-        f"- Current goal: {last_goal}\n\n"
-        "Would you like me to suggest a next step? 🌱"
+    summary_text = (
+        f"📝 Session Summary\n\n"
+        f"Mood trend: {', '.join(mood_trend)}\n"
+        f"Highlights: {', '.join(highlights)}\n"
+        f"Goals: {', '.join(active_goals) if active_goals else 'No active goals'}"
     )
 
     return jsonify({
-        "response": formatted_summary,
-        "mood": mood_summary,
+        "response": summary_text,
+        "mood": mood_trend[-1],
         "summary": {
-            "notes": notes[-5:],
-            "goals": goals,
-            "history": history[-5:]
+            "mood_trend": mood_trend,
+            "highlights": highlights,
+            "goals": active_goals
         }
     })
 
