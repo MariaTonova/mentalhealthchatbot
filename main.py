@@ -84,90 +84,83 @@ def chat():
     this_sid = sid()
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
     last_user = session.get("last_user")
-
     mood = get_mood(user_message)
 
-    # Crisis detection
-    if check_crisis(user_message):
-        CRISIS_MODE.add(this_sid)
-        bot_reply = get_crisis_message()
-        log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
-        return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
-    if this_sid in CRISIS_MODE:
-        bot_reply = get_crisis_message()
-        log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
-        return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
-
-    # Update history
-    USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
-    USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
-
-    # Store notes if memory enabled
-    if prefs.get("memory_opt_in"):
-        USER_NOTES[this_sid].append({
-            "ts": datetime.utcnow().isoformat(),
-            "mood": mood,
-            "point": user_message[:160]
-        })
-
-    # Personalized intro
-    intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
-
-    # Build system prompt
-    system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
-                    f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
-
-    # Backend reply
-    reply = None
-    backend_used = "unknown"
-
     try:
-        reply = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
-        if hasattr(backend, '__class__'):
-            backend_name = backend.__class__.__name__
-            if 'DialoGPT' in backend_name:
-                backend_used = "dialogpt"
-            elif 'OpenAI' in backend_name:
-                backend_used = "openai"
-            else:
-                backend_used = "offline"
+        # Crisis detection
+        if check_crisis(user_message):
+            CRISIS_MODE.add(this_sid)
+            bot_reply = get_crisis_message()
+            log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
+            return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
+        if this_sid in CRISIS_MODE:
+            bot_reply = get_crisis_message()
+            log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
+            return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
+
+        # Update history
+        USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
+        USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
+
+        # Store notes if memory enabled
+        if prefs.get("memory_opt_in"):
+            USER_NOTES[this_sid].append({
+                "ts": datetime.utcnow().isoformat(),
+                "mood": mood,
+                "point": user_message[:160]
+            })
+
+        # Personalized intro
+        intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
+
+        # Build system prompt
+        system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
+                        f"\nCurrent detected mood: {mood}. Keep replies short, warm, and end with a gentle question."
+
+        # Backend reply
+        reply = None
+        backend_used = "unknown"
+        try:
+            reply = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
+            backend_used = backend.__class__.__name__.lower()
+        except Exception as e:
+            print(f"❌ Backend error: {e}", flush=True)
+
+        # Fallback to CBT
+        if not reply:
+            last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
+            cbt_response = get_cbt_response(mood, user_message, last_bot_message, sid=this_sid)
+            reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '') or ''}".strip()
+            backend_used = "cbt-fallback"
+
+        # Add personalization + goals
+        reply = f"{intro}{reply}"
+        if prefs.get("memory_opt_in"):
+            reply += goal_nudge(this_sid)
+
+        # Save history
+        USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
+        session["last_user"] = user_message
+
+        # Log interaction
+        log_interaction(this_sid, user_message, reply, mood, crisis=False, backend_used=backend_used)
+
+        return jsonify({"response": reply, "mood": mood, "mode": backend_used})
+
     except Exception as e:
-        print(f"❌ Backend error: {e}", flush=True)
-        last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
-        cbt_response = get_cbt_response(mood, user_message, last_bot_message, sid=this_sid)
-        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '') or ''}".strip()
-        backend_used = "cbt-fallback"
-
-    if not reply:
-        last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
-        cbt_response = get_cbt_response(mood, user_message, last_bot_message, sid=this_sid)
-        reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '') or ''}".strip()
-        backend_used = "cbt-fallback"
-
-    # Add personalization + goals
-    reply = f"{intro}{reply}"
-    if prefs.get("memory_opt_in"):
-        reply += goal_nudge(this_sid)
-
-    # Save history
-    USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
-    session["last_user"] = user_message
-
-    # Log interaction
-    log_interaction(this_sid, user_message, reply, mood, crisis=False, backend_used=backend_used)
-
-    return jsonify({"response": reply, "mood": mood, "mode": backend_used})
+        print(f"❌ Chat route error: {e}", flush=True)
+        return jsonify({"response": "⚠️ Sorry, I had a problem. Let’s try again 💛", "mood": "neutral", "mode": "error"})
 
 @app.route("/status")
 def status():
     backend_type = "unknown"
     if hasattr(backend, '__class__'):
         backend_name = backend.__class__.__name__
-        if 'OpenAI' in backend_name:
+        if 'openai' in backend_name.lower():
             backend_type = "openai"
-        elif 'HuggingFace' in backend_name:
+        elif 'huggingface' in backend_name.lower():
             backend_type = "huggingface"
-        elif 'DialoGPT' in backend_name:
+        elif 'dialogpt' in backend_name.lower():
             backend_type = "dialogpt"
         else:
             backend_type = "offline"
@@ -244,4 +237,3 @@ def session_summary():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
