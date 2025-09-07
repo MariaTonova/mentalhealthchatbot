@@ -46,7 +46,9 @@ def build_system_prompt(last_user_msg, history):
 
 def goal_nudge(this_sid):
     open_goals = [g for g in USER_GOALS[this_sid] if not g["done"]]
-    return f"\n\nLast time you set: "{open_goals[0]['goal']}". Any tiny step today?" if open_goals else ""
+    if open_goals:
+        return f"\n\nLast time you set: “{open_goals[0]['goal']}”. Any tiny step today?"
+    return ""
 
 # ---------------- Routes ----------------
 @app.route("/")
@@ -92,13 +94,13 @@ def chat():
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
                     f"\nCurrent detected mood: {mood}. Keep replies to 2–3 short sentences and end with a gentle, open question."
 
-    # Generate response using the integrated backend system
+    # Generate response using backend
     reply = None
     backend_used = "unknown"
-    
+
     try:
         reply = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
-        # Determine which backend was actually used
+        # Determine backend type
         if hasattr(backend, '__class__'):
             backend_name = backend.__class__.__name__
             if 'DialoGPT' in backend_name:
@@ -109,25 +111,27 @@ def chat():
                 backend_used = "offline"
     except Exception as e:
         print(f"❌ Backend error: {e}", flush=True)
-        # Fallback to CBT responses if backend fails
-        cbt_response = get_cbt_response(mood)
+        # Fallback to CBT response
+        last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
+        cbt_response = get_cbt_response(mood, user_message, last_bot_message)
         reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
         backend_used = "cbt-fallback"
 
-    # If still no reply, use final fallback
+    # If still no reply, ensure fallback
     if not reply:
-        cbt_response = get_cbt_response(mood)
+        last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
+        cbt_response = get_cbt_response(mood, user_message, last_bot_message)
         reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '')}".strip()
         backend_used = "cbt-fallback"
 
     # Add personalized intro
     reply = f"{intro}{reply}"
     
-    # Add goal nudge if memory is enabled
+    # Add goal nudge if memory enabled
     if prefs.get("memory_opt_in"):
         reply += goal_nudge(this_sid)
 
-    # Update conversation history with assistant response
+    # Save assistant response
     USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
     session["last_user"] = user_message
 
@@ -188,9 +192,13 @@ def clear_crisis():
     this_sid = sid()
     if this_sid in CRISIS_MODE:
         CRISIS_MODE.remove(this_sid)
-        return jsonify({"status": "cleared", "message": "I'm glad you're feeling safer. I'm here to continue supporting you."})
+        return jsonify({
+            "status": "cleared",
+            "message": "I'm glad you're feeling safer. I'm here to continue supporting you."
+        })
     return jsonify({"status": "not_in_crisis"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
