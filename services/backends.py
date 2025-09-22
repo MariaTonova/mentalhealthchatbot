@@ -1,120 +1,143 @@
 import os
-from typing import List, Dict, Any
 
 class OfflineBackend:
-    """Fallback backend using simple pattern matching"""
-    
-    def reply(self, history: List[Dict], user_message: str, system_prompt: str) -> str:
-        # Simple response generation based on keywords
-        user_lower = user_message.lower()
-        
-        if any(word in user_lower for word in ['hello', 'hi', 'hey']):
-            return "It's good to hear from you! How are you feeling today? "
-        elif any(word in user_lower for word in ['thank', 'thanks']):
-            return "You're very welcome! Is there anything else on your mind? "
-        elif any(word in user_lower for word in ['bye', 'goodbye']):
-            return "Take care of yourself, and remember I'm here whenever you need to talk. "
-        elif any(word in user_lower for word in ['weather', 'rain', 'sunny', 'cloud', 'hot', 'cold', 'snow']):
-            return "Talking about the weather can be nice. It can really affect our mood sometimes, can't it? "
-        elif any(word in user_lower for word in ['music', 'song', 'movie', 'show', 'book', 'game', 'sport', 'hobby', 'hobbies']):
-            return "That sounds interesting! Having hobbies and interests is great. How do they make you feel? "
-        elif '?' in user_message:
-            return "That's a thoughtful question. Can you tell me more about what's behind it? "
-        else:
-            excerpt = user_message.strip()
-            if len(excerpt) > 100:
-                excerpt = excerpt[:100] + "..."
-            if excerpt.endswith((".", "?", "!")):
-                excerpt = excerpt[:-1]
-            return f'You mentioned, "{excerpt}". I hear you - let\u2019s talk more about that. '
+    """Simple pattern based fallback."""
+
+    def reply(self, history, user_message, system_prompt):
+        user_lower = (user_message or "").lower()
+
+        # Greetings and polite phrases
+        if any(w in user_lower for w in ["hello", "hi ", " hi", "hey"]):
+            return "It is good to hear from you. How are you feeling today?"
+        if "thank" in user_lower:
+            return "You are very welcome. Is there anything else on your mind?"
+        if any(w in user_lower for w in ["bye", "goodbye", "see you"]):
+            return "Take care. I am here whenever you want to talk."
+
+        # Small talk: weather and hobbies
+        if any(w in user_lower for w in ["weather", "sunny", "rain", "cloud", "hot", "cold", "wind", "snow", "storm"]):
+            return "The weather can shape how we feel. How does it feel where you are?"
+        if any(w in user_lower for w in ["music", "song", "movie", "show", "book", "game", "sport", "hobby", "hobbies"]):
+            return "That sounds interesting. How do your hobbies make you feel lately?"
+
+        # If question, invite more context
+        if "?" in user_message:
+            return "That is a thoughtful question. Can you tell me more about what is behind it?"
+
+        # Generic reflection
+        excerpt = user_message.strip()
+        if len(excerpt) > 140:
+            excerpt = excerpt[:140] + "..."
+        excerpt = excerpt.rstrip(".?!")
+        return f'You mentioned "{excerpt}". Tell me a bit more about that.'
+
 
 class OpenAIBackend:
-    """OpenAI GPT backend (updated for new API)"""
-    
+    """OpenAI GPT backend with simple chat API call."""
+
     def __init__(self):
-        from openai import OpenAI
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
-    def reply(self, history: List[Dict], user_message: str, system_prompt: str) -> str:
+        # Import lazily so the project runs even without the package
+        try:
+            from openai import OpenAI
+            self._OpenAI = OpenAI
+        except Exception as e:
+            self._OpenAI = None
+            print(f"OpenAI import failed: {e}")
+
+        self.client = None
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key and self._OpenAI:
+            try:
+                self.client = self._OpenAI(api_key=api_key)
+            except Exception as e:
+                print(f"OpenAI client init failed: {e}")
+
+    def reply(self, history, user_message, system_prompt):
+        if not self.client:
+            return None
         try:
             messages = [{"role": "system", "content": system_prompt}]
-            messages.extend([{"role": h["role"], "content": h["content"]} for h in history[-5:]])
+            # include a short recent window
+            for h in history[-5:]:
+                messages.append({"role": h["role"], "content": h["content"]})
             messages.append({"role": "user", "content": user_message})
-            
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+
+            # Using chat completions for compatibility with many setups
+            resp = self.client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
                 messages=messages,
-                max_tokens=150,
-                temperature=0.7
+                temperature=0.7,
+                max_tokens=220,
             )
-            return response.choices[0].message.content.strip()
+            return resp.choices[0].message.content.strip()
         except Exception as e:
-            print(f"OpenAI error: {e}")
+            print(f"OpenAI call failed: {e}")
             return None
+
 
 class HuggingFaceBackend:
-    """DialoGPT backend for conversational AI"""
-    
+    """DialoGPT small local model as a backup."""
+
     def __init__(self):
+        self.model = None
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            import torch
-            
-            model_name = "microsoft/DialoGPT-small"
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(model_name)
+            import torch  # noqa
+            self._AutoModelForCausalLM = AutoModelForCausalLM
+            self._AutoTokenizer = AutoTokenizer
+            self._torch = __import__("torch")
+            model_name = os.getenv("HF_MODEL", "microsoft/DialoGPT-small")
+            self.tokenizer = self._AutoTokenizer.from_pretrained(model_name)
+            self.model = self._AutoModelForCausalLM.from_pretrained(model_name)
             self.tokenizer.pad_token = self.tokenizer.eos_token
         except Exception as e:
-            print(f"Failed to load HuggingFace model: {e}")
-            raise
-    
-    def reply(self, history: List[Dict], user_message: str, system_prompt: str) -> str:
+            print(f"HuggingFace init failed: {e}")
+
+    def reply(self, history, user_message, system_prompt):
+        if not self.model:
+            return None
         try:
-            # Build conversation context
-            context = ""
-            for h in history[-3:]:  # Use last 3 exchanges
-                if h["role"] == "user":
-                    context += f"User: {h['content']}\n"
-                else:
-                    context += f"Bot: {h['content']}\n"
-            context += f"User: {user_message}\nBot:"
-            
-            # Generate response
-            inputs = self.tokenizer.encode(context, return_tensors="pt", max_length=512, truncation=True)
-            
-            with torch.no_grad():
-                outputs = self.model.generate(
+            ctx = []
+            for h in history[-3:]:
+                role = "User" if h["role"] == "user" else "Bot"
+                ctx.append(f"{role}: {h['content']}")
+            ctx.append(f"User: {user_message}")
+            ctx.append("Bot:")
+
+            prompt = "\n".join(ctx)
+            inputs = self.tokenizer.encode(prompt, return_tensors="pt", max_length=512, truncation=True)
+            with self._torch.no_grad():
+                output = self.model.generate(
                     inputs,
-                    max_length=inputs.shape[1] + 50,
+                    max_length=min(768, inputs.shape[1] + 70),
                     temperature=0.8,
-                    pad_token_id=self.tokenizer.eos_token_id,
                     do_sample=True,
-                    top_p=0.9
+                    top_p=0.9,
+                    pad_token_id=self.tokenizer.eos_token_id,
                 )
-            
-            response = self.tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True)
-            return response.strip() if response else None
+            text = self.tokenizer.decode(output[0][inputs.shape[1]:], skip_special_tokens=True)
+            return text.strip() or None
         except Exception as e:
-            print(f"HuggingFace error: {e}")
+            print(f"HuggingFace call failed: {e}")
             return None
 
+
 def get_backend():
-    """Initialize the appropriate backend based on available resources"""
-    
-    # Try OpenAI first if API key is available
+    # Try OpenAI if available
     if os.getenv("OPENAI_API_KEY"):
-        try:
-            print("Attempting to use OpenAI backend...")
-            return OpenAIBackend()
-        except Exception as e:
-            print(f"OpenAI init failed: {e}")
-    # Try HuggingFace if OpenAI is not available or fails
-    try:
-        print("Attempting to use HuggingFace backend...")
-        return HuggingFaceBackend()
-    except Exception as e:
-        print(f"HuggingFace init failed: {e}")
-        # Fallback to OfflineBackend
-        print("Using Offline backend as fallback.")
-        return OfflineBackend()
+        b = OpenAIBackend()
+        if b.client:
+            print("Using OpenAIBackend")
+            return b
+        print("OpenAI not available, trying HuggingFace")
+
+    # Try HuggingFace
+    b2 = HuggingFaceBackend()
+    if b2.model:
+        print("Using HuggingFaceBackend")
+        return b2
+
+    # Fallback
+    print("Using OfflineBackend")
+    return OfflineBackend()
 
