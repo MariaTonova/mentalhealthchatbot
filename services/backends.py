@@ -14,10 +14,19 @@ class OfflineBackend:
             return "You're very welcome! Is there anything else on your mind? "
         elif any(word in user_lower for word in ['bye', 'goodbye']):
             return "Take care of yourself, and remember I'm here whenever you need to talk. "
+        elif any(word in user_lower for word in ['weather', 'rain', 'sunny', 'cloud', 'hot', 'cold', 'snow']):
+            return "Talking about the weather can be nice. It can really affect our mood sometimes, can't it? "
+        elif any(word in user_lower for word in ['music', 'song', 'movie', 'show', 'book', 'game', 'sport', 'hobby', 'hobbies']):
+            return "That sounds interesting! Having hobbies and interests is great. How do they make you feel? "
         elif '?' in user_message:
             return "That's a thoughtful question. Can you tell me more about what's behind it? "
         else:
-            return "I hear you. What else would you like to share? "
+            excerpt = user_message.strip()
+            if len(excerpt) > 100:
+                excerpt = excerpt[:100] + "..."
+            if excerpt.endswith((".", "?", "!")):
+                excerpt = excerpt[:-1]
+            return f'You mentioned, "{excerpt}". I hear you - let\u2019s talk more about that. '
 
 class OpenAIBackend:
     """OpenAI GPT backend (updated for new API)"""
@@ -98,15 +107,14 @@ def get_backend():
             print("Attempting to use OpenAI backend...")
             return OpenAIBackend()
         except Exception as e:
-            print(f"OpenAI backend failed: {e}")
-    
-    # Try HuggingFace/DialoGPT
+            print(f"OpenAI init failed: {e}")
+    # Try HuggingFace if OpenAI is not available or fails
     try:
         print("Attempting to use HuggingFace backend...")
         return HuggingFaceBackend()
     except Exception as e:
-        print(f"HuggingFace backend failed: {e}")
-    
-    # Fallback to offline backend
-    print("Using offline backend...")
-    return OfflineBackend()
+        print(f"HuggingFace init failed: {e}")
+        # Fallback to OfflineBackend
+        print("Using Offline backend as fallback.")
+        return OfflineBackend()
+
