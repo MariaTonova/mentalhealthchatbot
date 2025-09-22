@@ -32,6 +32,40 @@ def sid():
         session["sid"] = str(uuid.uuid4())
     return session["sid"]
 
+def _first_sentence(s: str) -> str:
+    s = (s or "").strip()
+    for sep in [".", "!", "?"]:
+        if sep in s:
+            return s.split(sep, 1)[0].strip()
+    return s
+
+def combine_with_intro(intro: str, reply: str, last_bot_message: str = "") -> str:
+    """
+    Prevents duplicated openings like:
+    intro:  "That's wonderful to hear!"
+    reply:  "That's wonderful to hear! 🌟 What made your day feel good?"
+    Also prevents repeating the same intro back-to-back across turns.
+    """
+    intro_clean = (intro or "").strip()
+    if not intro_clean:
+        return reply
+
+    # 1) If reply already starts with the intro phrase, skip the intro
+    if reply.lower().startswith(intro_clean.lower()):
+        return reply
+
+    # 2) If first sentences match, skip the intro
+    if _first_sentence(reply).rstrip(".!?").lower() == _first_sentence(intro_clean).rstrip(".!?").lower():
+        return reply
+
+    # 3) If the previous bot message opened with the same sentence, skip the intro
+    if last_bot_message:
+        if _first_sentence(last_bot_message).rstrip(".!?").lower() == _first_sentence(intro_clean).rstrip(".!?").lower():
+            return reply
+
+    return f"{intro}{reply}"
+
+
 def build_system_prompt(last_user_msg, history):
     base = (
         "You are CareBear, a warm, friendly mental health companion who also enjoys casual conversation.\n"
