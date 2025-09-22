@@ -98,24 +98,9 @@ def chat():
             log_interaction(this_sid, user_message, bot_reply, mood, crisis=True, backend_used="crisis")
             return jsonify({"response": bot_reply, "mood": mood, "crisis": True})
 
-        # Update history
-        USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
-        USER_HISTORY[this_sid] = USER_HISTORY[this_sid][-10:]
-
-        # Store notes if memory enabled
-        if prefs.get("memory_opt_in"):
-            USER_NOTES[this_sid].append({
-                "ts": datetime.utcnow().isoformat(),
-                "mood": mood,
-                "point": user_message[:160]
-            })
-
-        # Personalized intro
+        # Personalize system prompt (tone + mood context)
+        system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid])
         intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
-
-        # Build system prompt
-        system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid]) + \
-                        f"\nCurrent detected mood: {mood}. Keep replies short, warm, and end with a gentle question."
 
         # Backend reply
         reply = None
@@ -131,7 +116,7 @@ def chat():
             last_bot_message = USER_HISTORY[this_sid][-1]['content'] if USER_HISTORY[this_sid] else ""
             cbt_response = get_cbt_response(mood, user_message, last_bot_message, sid=this_sid)
             reply = f"{cbt_response['message']} {cbt_response.get('follow_up', '') or ''}".strip()
-            backend_used = "cbt-fallback"
+            backend_used = "cbt"
 
         # Add personalization + goals
         reply = f"{intro}{reply}"
@@ -142,97 +127,40 @@ def chat():
         USER_HISTORY[this_sid].append({"role": "assistant", "content": reply})
         session["last_user"] = user_message
 
-        # Log interaction
         log_interaction(this_sid, user_message, reply, mood, crisis=False, backend_used=backend_used)
-
-        return jsonify({"response": reply, "mood": mood, "mode": backend_used})
-
+        return jsonify({"response": reply, "mood": mood})
     except Exception as e:
-        print(f"❌ Chat route error: {e}", flush=True)
-        return jsonify({"response": "⚠️ Sorry, I had a problem. Let’s try again 💛", "mood": "neutral", "mode": "error"})
+        print(f"⚠️ Error in chat handling: {e}", flush=True)
+        return jsonify({"response": "Sorry, something went wrong. Can we try again?"})
 
-@app.route("/status")
-def status():
-    backend_type = "unknown"
-    if hasattr(backend, '__class__'):
-        backend_name = backend.__class__.__name__
-        if 'openai' in backend_name.lower():
-            backend_type = "openai"
-        elif 'huggingface' in backend_name.lower():
-            backend_type = "huggingface"
-        elif 'dialogpt' in backend_name.lower():
-            backend_type = "dialogpt"
-        else:
-            backend_type = "offline"
-    return jsonify({"mode": backend_type})
-
-@app.route("/preferences", methods=["GET", "POST"])
-def preferences():
+@app.route("/notes", methods=["GET", "POST"])
+def notes():
     this_sid = sid()
     if request.method == "POST":
-        prefs = request.get_json() or {}
-        USER_PREFS[this_sid] = {
-            "tone": prefs.get("tone", "friendly"),
-            "memory_opt_in": prefs.get("memory_opt_in", False)
-        }
-        return jsonify({"status": "updated", "preferences": USER_PREFS[this_sid]})
-    return jsonify(USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False}))
+        note = (request.get_json(silent=True) or {}).get("note", "").strip()
+        if note:
+            USER_NOTES[this_sid].append({"note": note, "time": datetime.utcnow().isoformat()})
+    return jsonify({"notes": USER_NOTES[this_sid]})
 
 @app.route("/goals", methods=["GET", "POST"])
 def goals():
     this_sid = sid()
     if request.method == "POST":
-        goal_data = request.get_json() or {}
-        if goal_data.get("goal"):
-            USER_GOALS[this_sid].append({
-                "goal": goal_data["goal"],
-                "created": datetime.utcnow().isoformat(),
-                "done": False
-            })
-        return jsonify({"status": "added", "goals": USER_GOALS[this_sid]})
-    return jsonify(USER_GOALS[this_sid])
+        data = request.get_json(silent=True) or {}
+        goal_text = data.get("goal", "").strip()
+        if goal_text:
+            goal_entry = {"goal": goal_text, "time": datetime.utcnow().isoformat(), "done": False}
+            USER_GOALS[this_sid].append(goal_entry)
+    return jsonify({"goals": USER_GOALS[this_sid]})
 
-@app.route("/clear_crisis", methods=["POST"])
-def clear_crisis():
+@app.route("/preferences", methods=["GET", "POST"])
+def preferences():
     this_sid = sid()
-    if this_sid in CRISIS_MODE:
-        CRISIS_MODE.remove(this_sid)
-        return jsonify({
-            "status": "cleared",
-            "message": "I'm glad you're feeling safer. I'm here to continue supporting you."
-        })
-    return jsonify({"status": "not_in_crisis"})
-
-@app.route("/session-summary", methods=["GET"])
-def session_summary():
-    """Return a formatted session summary as a CareBear-style response."""
-    this_sid = sid()
-    notes = USER_NOTES.get(this_sid, [])
-    goals = USER_GOALS.get(this_sid, [])
-    history = USER_HISTORY.get(this_sid, [])
-
-    mood_trend = [n["mood"] for n in notes][-5:] if notes else ["neutral"]
-    highlights = [n["point"] for n in notes][-5:] if notes else ["No highlights yet"]
-    active_goals = [g["goal"] for g in goals if not g["done"]]
-
-    summary_text = (
-        f"📝 Session Summary\n\n"
-        f"Mood trend: {', '.join(mood_trend)}\n"
-        f"Highlights: {', '.join(highlights)}\n"
-        f"Goals: {', '.join(active_goals) if active_goals else 'No active goals'}"
-    )
-
-    return jsonify({
-        "response": summary_text,
-        "mood": mood_trend[-1],
-        "summary": {
-            "mood_trend": mood_trend,
-            "highlights": highlights,
-            "goals": active_goals
+    if request.method == "POST":
+        prefs = request.get_json(silent=True) or {}
+        USER_PREFS[this_sid] = {
+            "tone": prefs.get("tone", "friendly"),
+            "memory_opt_in": bool(prefs.get("memory_opt_in", False))
         }
-    })
+    return jsonify(USER_PREFS.get(this_sid, {}))
 
-# ---------------- Run ----------------
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=False)
