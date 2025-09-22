@@ -1,9 +1,10 @@
 # services/backends.py
-# Complete backend module with OpenAI fine-tune support, HF fallback, and Offline fallback.
+# Complete backend module with OpenAI fine-tune support, HF fallback, Offline fallback,
+# and a get_backend() export for backward compatibility with main.py.
 
 import os
 import json
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 
 # -------------------------
 # Helpers
@@ -37,7 +38,6 @@ def _build_messages(history: List[Dict[str, str]], user_message: str, system_pro
 
 class OfflineBackend:
     """Very simple keyword fallback so you always get something."""
-
     name = "offline"
 
     def reply(self, history: List[Dict[str, str]], user_message: str, system_prompt: Optional[str]) -> Dict[str, str]:
@@ -72,10 +72,9 @@ class OfflineBackend:
 
 class HuggingFaceBackend:
     """
-    Uses DialoGPT from Hugging Face as a non OpenAI fallback.
-    It will try local transformers first, then HF Inference API if HF_API_KEY is set.
+    Uses DialoGPT from Hugging Face as a non-OpenAI fallback.
+    Tries local transformers; if unavailable and HF_API_KEY is set, uses the HF Inference API.
     """
-
     name = "huggingface"
 
     def __init__(self):
@@ -115,7 +114,6 @@ class HuggingFaceBackend:
                 r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=30)
                 r.raise_for_status()
                 data = r.json()
-                # Inference API returns list of dicts with "generated_text"
                 if isinstance(data, list) and data and "generated_text" in data[0]:
                     text = data[0]["generated_text"]
                     text = text.split("Assistant:")[-1].strip() if "Assistant:" in text else text.strip()
@@ -137,16 +135,16 @@ class HuggingFaceBackend:
         return "\n".join(lines)
 
 # -------------------------
-# OpenAI Backend with Fine Tune support
+# OpenAI Backend with Fine-Tune support
 # -------------------------
 
 class OpenAIBackend:
     """OpenAI chat backend that prefers a fine-tuned model if OPENAI_FINETUNE_MODEL is set."""
-
     name = "openai"
 
     def __init__(self):
         self.client = None
+        # default base model if your env doesn't specify one
         self.model_base = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         self.model_ft = os.getenv("OPENAI_FINETUNE_MODEL", "").strip() or None
         self.temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.5"))
@@ -160,8 +158,7 @@ class OpenAIBackend:
             return
         try:
             from openai import OpenAI  # type: ignore
-            # base_url optional for proxies or Azure OpenAI
-            base_url = os.getenv("OPENAI_API_BASE") or None
+            base_url = os.getenv("OPENAI_API_BASE") or None  # optional
             self.client = OpenAI(api_key=api_key, base_url=base_url)
         except Exception as e:
             self.client = None
@@ -187,13 +184,13 @@ class OpenAIBackend:
             return None
 
 # -------------------------
-# Orchestrator
+# Orchestrator + compatibility shims
 # -------------------------
 
 def _backend_order() -> List[str]:
     """
     Order can be influenced by USE_DIALOGGPT.
-    If USE_DIALOGGPT=true, try HF first so you can compare easily.
+    If USE_DIALOGGPT=true, try HF first (handy for comparisons).
     Otherwise default to OpenAI first.
     """
     use_dialogpt = _is_truthy(os.getenv("USE_DIALOGGPT"))
@@ -211,31 +208,37 @@ def _make_backend(name: str):
 def chat_reply(history: List[Dict[str, str]], user_message: str, system_prompt: Optional[str]) -> Dict[str, str]:
     """
     Call backends in order until one returns a response.
-    Return a dict with keys: text, backend, model.
+    Returns a dict: {text, backend, model}.
     """
     for name in _backend_order():
         backend = _make_backend(name)
         result = backend.reply(history, user_message, system_prompt)
         if result and isinstance(result, dict) and result.get("text"):
             return result
-    # Should never happen, but be safe
     return OfflineBackend().reply(history, user_message, system_prompt)
 
-# Backward compatible alias if your app imports a different symbol
+# Backward-compatible alias if other code imports this
 def generate_response(history: List[Dict[str, str]], user_message: str, system_prompt: Optional[str]) -> Dict[str, str]:
     return chat_reply(history, user_message, system_prompt)
 
-# Optional factory if your dialogue manager expects it
-class BackendFactory:
-    @staticmethod
-    def create_openai_backend() -> OpenAIBackend:
-        return OpenAIBackend()
+# ---- THIS IS WHAT main.py EXPECTS ----
+class _Router:
+    """
+    Small adapter so existing code that does:
+        from services.backends import get_backend
+        backend = get_backend()
+        text = backend.reply(history, user_msg, system_prompt)
+    still works. It returns a STRING (text only), just like many older backends.
+    """
+    def reply(self, history: List[Dict[str, str]], user_message: str, system_prompt: Optional[str]) -> str:
+        result = chat_reply(history, user_message, system_prompt)
+        # Return text only for legacy compatibility
+        return result.get("text", "")
 
-    @staticmethod
-    def create_hf_backend() -> HuggingFaceBackend:
-        return HuggingFaceBackend()
-
-    @staticmethod
-    def create_offline_backend() -> OfflineBackend:
-        return OfflineBackend()
+def get_backend() -> _Router:
+    """
+    Exported for legacy imports in main.py.
+    Returns an object with .reply(...) -> str
+    """
+    return _Router()
 
