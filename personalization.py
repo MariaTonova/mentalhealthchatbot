@@ -9,9 +9,9 @@ def personalize_response(text: str, mood: str, tone: str = "friendly") -> str:
     # Friendly tone options
     friendly_styles = {
         "sad": [
-            "I’m here with you. That sounds tough.",
+            "I’m here with you. That sounds really tough.",
             "I hear you — you’re not alone in this.",
-            "I’m here, and I care about what you’re going through."
+            "That sounds really hard. I care about what you’re going through."
         ],
         "happy": [
             "I’m here with you. Love that spark.",
@@ -20,8 +20,13 @@ def personalize_response(text: str, mood: str, tone: str = "friendly") -> str:
         ],
         "neutral": [
             "I’m here with you. Tell me a bit more about what’s on your mind.",
-            "I’m here with you. How’s your day been going?",
-            "I’m here with you. What’s been on your mind today?"
+            "I’m listening. How has your day been going?",
+            "I hear you. What’s been on your mind today?"
+        ],
+        "anxious": [
+            "It sounds like you’re feeling anxious. Let’s take a deep breath together.",
+            "I know things might feel overwhelming right now. I’m here by your side.",
+            "It’s okay to feel anxious sometimes. We can work through that feeling together."
         ]
     }
 
@@ -29,7 +34,7 @@ def personalize_response(text: str, mood: str, tone: str = "friendly") -> str:
     formal_styles = {
         "sad": [
             "I’m here to support you during this difficult time.",
-            "I understand this must be hard — I’m here to help.",
+            "I understand this must be hard. You’re not alone in this.",
             "You’re not alone; I’m here to listen."
         ],
         "happy": [
@@ -41,6 +46,11 @@ def personalize_response(text: str, mood: str, tone: str = "friendly") -> str:
             "I’m here to support you — please tell me more.",
             "I’d like to understand more about your current thoughts.",
             "How has your day been so far?"
+        ],
+        "anxious": [
+            "It seems you’re feeling anxious at the moment. Let’s take a moment to breathe and gather our thoughts.",
+            "I understand you may be experiencing anxiety. I’m here to help you through this.",
+            "Feeling anxious can be challenging. We can take things step by step together."
         ]
     }
 
