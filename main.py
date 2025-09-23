@@ -6,8 +6,7 @@ from crisis_detection import check_crisis, get_crisis_message
 from personalization import personalize_response
 from cbt_responses import get_cbt_response
 from services.backends import get_backend
-import os, uuid, json
-import random
+import os, uuid, json, random  # <- add random
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -36,6 +35,7 @@ def build_system_prompt(last_user_msg, history):
     base = (
         "You are CareBear, a warm, friendly mental health companion.\n"
         "STYLE: Reply in 2 to 3 short sentences with warmth and empathy. Light emojis are ok.\n"
+        "If mood is anxious, begin with reassurance and one simple technique.\n"
         "Avoid clinical claims or diagnosis. Keep it supportive and conversational.\n"
     )
     if history:
@@ -93,15 +93,12 @@ def combine_with_intro(intro: str, reply: str, last_bot_message: str = "") -> st
     if not intro_clean:
         return reply
 
-    # If reply already starts with the same opening, skip intro
     if reply.lower().startswith(intro_clean.lower()):
         return reply
 
-    # If first sentences match, skip intro
     if _first_sentence(reply).rstrip(".!?").lower() == _first_sentence(intro_clean).rstrip(".!?").lower():
         return reply
 
-    # If previous bot turn opened the same way, skip intro
     if last_bot_message:
         if _first_sentence(last_bot_message).rstrip(".!?").lower() == _first_sentence(intro_clean).rstrip(".!?").lower():
             return reply
@@ -125,7 +122,7 @@ def chat():
     this_sid = sid()
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
 
-    # Ensure session flags exist (for one-time greeting)
+    # Ensure first-turn flags
     if "greeted" not in session:
         session["greeted"] = False
     if "last_user" not in session:
@@ -136,7 +133,7 @@ def chat():
 
     mood = get_mood(user_message)
 
-    # Crisis check
+    # Crisis check – remains first
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
         crisis_msg = get_crisis_message()
@@ -150,7 +147,7 @@ def chat():
         log_interaction(this_sid, user_message, crisis_msg, mood, crisis=True, backend_used="crisis")
         return jsonify({"response": crisis_msg, "mood": mood, "crisis": True})
 
-    # One-time friendly greeting on the first non-crisis turn if the message is a greeting
+    # One-time friendly greeting when the first real message is a greeting
     if not session["greeted"]:
         lw = user_message.lower()
         if any(w in lw for w in ["hi", "hello", "hey", "good morning", "good evening", "good afternoon"]):
@@ -164,7 +161,7 @@ def chat():
             session["last_user"] = user_message
             log_interaction(this_sid, user_message, greet, mood, crisis=False, backend_used="greeting")
             return jsonify({"response": greet, "mood": "neutral"})
-        # Mark greeted so we do not re-check each turn
+        # mark as greeted to avoid rechecking every turn
         session["greeted"] = True
 
     # Personalize intro and system prompt
@@ -174,15 +171,15 @@ def chat():
 
     # Try model backend
     backend_used = "unknown"
-    bot_text = ""
+    bot_text = None
     try:
-        bot_text = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt) or ""
+        bot_text = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
         backend_used = type(backend).__name__
     except Exception as e:
         print(f"Backend error: {e}", flush=True)
 
-    # Fallback to CBT logic if backend empty
-    if not bot_text.strip():
+    # Fallback to CBT logic
+    if not bot_text:
         last_bot = _last_bot_message(USER_HISTORY[this_sid])
         cbt = get_cbt_response(mood, user_message, last_bot, sid=this_sid)
         bot_text = f'{cbt["message"]} {(cbt.get("follow_up") or "")}'.strip()
@@ -204,7 +201,6 @@ def chat():
 @app.route("/session-summary", methods=["GET"])
 def session_summary():
     this_sid = sid()
-    # Gather recent user lines for a quick recap
     recent_user_msgs = [h["content"] for h in USER_HISTORY[this_sid] if h["role"] == "user"][-8:]
     if not recent_user_msgs:
         return jsonify({"response": "We have not chatted yet. Say hi to start.", "mood": "neutral"})
@@ -229,12 +225,8 @@ def goals():
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         goal_text = data.get("goal", "").strip()
-        done_flag = data.get("done", None)
         if goal_text:
             USER_GOALS[this_sid].append({"goal": goal_text, "time": datetime.utcnow().isoformat(), "done": False})
-        elif isinstance(done_flag, bool) and USER_GOALS[this_sid]:
-            # mark last goal done or undone
-            USER_GOALS[this_sid][-1]["done"] = done_flag
     return jsonify({"goals": USER_GOALS[this_sid]})
 
 
