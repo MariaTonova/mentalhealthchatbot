@@ -7,6 +7,7 @@ from personalization import personalize_response
 from cbt_responses import get_cbt_response
 from services.backends import get_backend
 import os, uuid, json
+import random  # NEW: for varied greeting
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -125,12 +126,18 @@ def chat():
     this_sid = sid()
     prefs = USER_PREFS.get(this_sid, {"tone": "friendly", "memory_opt_in": False})
 
-    # Append user message to history first
+    # Ensure session flags exist (for one-time greeting)
+    if "greeted" not in session:
+        session["greeted"] = False
+    if "last_user" not in session:
+        session["last_user"] = ""
+
+    # Append user message to history first (keeps logs consistent)
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
 
     mood = get_mood(user_message)
 
-    # Crisis check
+    # Crisis check (kept exactly as before)
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
         crisis_msg = get_crisis_message()
@@ -144,12 +151,29 @@ def chat():
         log_interaction(this_sid, user_message, crisis_msg, mood, crisis=True, backend_used="crisis")
         return jsonify({"response": crisis_msg, "mood": mood, "crisis": True})
 
-    # Personalize intro and system prompt
+    # One-time friendly greeting on the true first non-crisis turn, only if the message is a greeting
+    if not session["greeted"]:
+        lw = user_message.lower()
+        if any(w in lw for w in ["hi", "hello", "hey", "good morning", "good evening", "good afternoon"]):
+            session["greeted"] = True
+            greet = random.choice([
+                "Hi there. I am glad you reached out. How are you feeling today?",
+                "Hello. I am here with you. What is on your mind?",
+                "Hey. Thanks for saying hi. How is your day going so far?"
+            ])
+            USER_HISTORY[this_sid].append({"role": "assistant", "content": greet})
+            session["last_user"] = user_message
+            log_interaction(this_sid, user_message, greet, mood, crisis=False, backend_used="greeting")
+            return jsonify({"response": greet, "mood": "neutral"})
+        # If it was not a greeting, still mark greeted to avoid repeatedly testing
+        session["greeted"] = True
+
+    # Personalize intro and system prompt (kept)
     last_user = session.get("last_user")
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid])
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # Try model backend
+    # Try model backend (kept)
     backend_used = "unknown"
     bot_text = None
     try:
@@ -158,14 +182,14 @@ def chat():
     except Exception as e:
         print(f"Backend error: {e}", flush=True)
 
-    # Fallback to CBT logic
+    # Fallback to CBT logic (kept, but benefits from improved cbt_responses)
     if not bot_text:
         last_bot = _last_bot_message(USER_HISTORY[this_sid])
         cbt = get_cbt_response(mood, user_message, last_bot, sid=this_sid)
         bot_text = f'{cbt["message"]} {(cbt.get("follow_up") or "")}'.strip()
         backend_used = "cbt"
 
-    # Combine with intro, and add goal nudge if memory on
+    # Combine with intro, and add goal nudge if memory on (kept)
     last_bot_before = _last_bot_message(USER_HISTORY[this_sid])
     reply = combine_with_intro(intro, bot_text, last_bot_before)
     if prefs.get("memory_opt_in"):
@@ -230,4 +254,5 @@ def health():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
+
 
