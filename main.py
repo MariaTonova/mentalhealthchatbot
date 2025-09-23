@@ -7,7 +7,7 @@ from personalization import personalize_response
 from cbt_responses import get_cbt_response
 from services.backends import get_backend
 import os, uuid, json
-import random  # NEW: for varied greeting
+import random
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
@@ -36,7 +36,6 @@ def build_system_prompt(last_user_msg, history):
     base = (
         "You are CareBear, a warm, friendly mental health companion.\n"
         "STYLE: Reply in 2 to 3 short sentences with warmth and empathy. Light emojis are ok.\n"
-        "If mood is anxious, begin with reassurance and one simple technique.\n"
         "Avoid clinical claims or diagnosis. Keep it supportive and conversational.\n"
     )
     if history:
@@ -132,12 +131,12 @@ def chat():
     if "last_user" not in session:
         session["last_user"] = ""
 
-    # Append user message to history first (keeps logs consistent)
+    # Append user message to history first
     USER_HISTORY[this_sid].append({"role": "user", "content": user_message})
 
     mood = get_mood(user_message)
 
-    # Crisis check (kept exactly as before)
+    # Crisis check
     if check_crisis(user_message):
         CRISIS_MODE.add(this_sid)
         crisis_msg = get_crisis_message()
@@ -151,7 +150,7 @@ def chat():
         log_interaction(this_sid, user_message, crisis_msg, mood, crisis=True, backend_used="crisis")
         return jsonify({"response": crisis_msg, "mood": mood, "crisis": True})
 
-    # One-time friendly greeting on the true first non-crisis turn, only if the message is a greeting
+    # One-time friendly greeting on the first non-crisis turn if the message is a greeting
     if not session["greeted"]:
         lw = user_message.lower()
         if any(w in lw for w in ["hi", "hello", "hey", "good morning", "good evening", "good afternoon"]):
@@ -165,31 +164,31 @@ def chat():
             session["last_user"] = user_message
             log_interaction(this_sid, user_message, greet, mood, crisis=False, backend_used="greeting")
             return jsonify({"response": greet, "mood": "neutral"})
-        # If it was not a greeting, still mark greeted to avoid repeatedly testing
+        # Mark greeted so we do not re-check each turn
         session["greeted"] = True
 
-    # Personalize intro and system prompt (kept)
+    # Personalize intro and system prompt
     last_user = session.get("last_user")
     system_prompt = build_system_prompt(last_user, USER_HISTORY[this_sid])
     intro = personalize_response(user_message, mood, prefs.get("tone", "friendly"))
 
-    # Try model backend (kept)
+    # Try model backend
     backend_used = "unknown"
-    bot_text = None
+    bot_text = ""
     try:
-        bot_text = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt)
+        bot_text = backend.reply(USER_HISTORY[this_sid], user_message, system_prompt) or ""
         backend_used = type(backend).__name__
     except Exception as e:
         print(f"Backend error: {e}", flush=True)
 
-    # Fallback to CBT logic (kept, but benefits from improved cbt_responses)
-    if not bot_text:
+    # Fallback to CBT logic if backend empty
+    if not bot_text.strip():
         last_bot = _last_bot_message(USER_HISTORY[this_sid])
         cbt = get_cbt_response(mood, user_message, last_bot, sid=this_sid)
         bot_text = f'{cbt["message"]} {(cbt.get("follow_up") or "")}'.strip()
         backend_used = "cbt"
 
-    # Combine with intro, and add goal nudge if memory on (kept)
+    # Combine with intro, and add goal nudge if memory on
     last_bot_before = _last_bot_message(USER_HISTORY[this_sid])
     reply = combine_with_intro(intro, bot_text, last_bot_before)
     if prefs.get("memory_opt_in"):
@@ -230,8 +229,12 @@ def goals():
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         goal_text = data.get("goal", "").strip()
+        done_flag = data.get("done", None)
         if goal_text:
             USER_GOALS[this_sid].append({"goal": goal_text, "time": datetime.utcnow().isoformat(), "done": False})
+        elif isinstance(done_flag, bool) and USER_GOALS[this_sid]:
+            # mark last goal done or undone
+            USER_GOALS[this_sid][-1]["done"] = done_flag
     return jsonify({"goals": USER_GOALS[this_sid]})
 
 
@@ -254,5 +257,4 @@ def health():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
-
 
