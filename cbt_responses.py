@@ -1,13 +1,10 @@
+from typing import Optional
 import random
 
-# Track active exercise flow per session id (kept from your original design)
+# Track an exercise flow per session id
 EXERCISE_STATE = {}
-# Track sessions that declined suggestions recently (kept)
+# Track sessions that declined suggestions
 DECLINED_SUGGESTIONS = set()
-
-# NEW: light conversation-state to reduce abruptness without interfering with exercises
-# We deliberately keep this separate from EXERCISE_STATE so your exercise logic stays untouched.
-_CONVO_STATE = {}  # sid -> {"stage": "start"|"choice"|"pick_ex"|"free_chat"}
 
 CBT_RESPONSES = {
     "sad": [
@@ -41,7 +38,7 @@ CBT_RESPONSES = {
 }
 
 # -----------------------------
-# Helpers (additive, reusable)
+# Helpers
 # -----------------------------
 
 def _wants_to_talk(text: str) -> bool:
@@ -52,7 +49,7 @@ def _is_decline(text: str) -> bool:
     t = (text or "").lower()
     return any(w in t for w in ["no", "not now", "maybe later", "skip", "pass", "another time", "not really"])
 
-def _picked_exercise(text: str) -> str | None:
+def _picked_exercise(text: str) -> Optional[str]:
     t = (text or "").lower()
     for k in ["grounding", "breathing", "reframing"]:
         if k in t:
@@ -75,9 +72,7 @@ def _polite_intercepts(text: str):
         }
     return None
 
-def _throttle_suggestions(last_bot: str, sid: str, follow_up: str | None) -> str | None:
-    # Avoid repeating “Would you like to try…” if we just said it,
-    # or if the user recently declined.
+def _throttle_suggestions(last_bot: str, sid: str, follow_up: Optional[str]) -> Optional[str]:
     if not follow_up:
         return None
     lb = (last_bot or "").lower()
@@ -88,7 +83,7 @@ def _throttle_suggestions(last_bot: str, sid: str, follow_up: str | None) -> str
     return follow_up
 
 # -----------------------------
-# Exercise flows (unchanged API)
+# Exercise flows
 # -----------------------------
 
 # Grounding
@@ -108,7 +103,6 @@ def continue_grounding(sid):
         EXERCISE_STATE[sid]["step"] += 1
         return {"message": prompts[step], "reason": "Progressing grounding.", "follow_up": None}
     EXERCISE_STATE.pop(sid, None)
-    # Do not alter flow here; the next user turn can continue chatting or try another exercise.
     return {"message": "Excellent work 🌟. You completed grounding. How do you feel now?", "reason": "Close grounding.", "follow_up": "If you want, we can try breathing or reframing next."}
 
 # Breathing
@@ -152,20 +146,17 @@ def continue_reframing(sid):
 # Dispatcher (improved, same return)
 # ---------------------------------
 
+# Lightweight conversation state to gently invite choices; separate from exercises
+_CONVO_STATE = {}  # sid -> {"stage": "start"|"choice"|"pick_ex"|"free_chat"}
+
 def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = "", sid: str = None) -> dict:
     """
     Progressive, gentle flow while remaining fully compatible with your
-    original return structure. Priorities:
-
-      1) Continue active exercise if running
-      2) Polite intercepts (thanks/maybe)
-      3) Explicit exercise intents / yes-no
-      4) Progressive 'talk or calming' invite
-      5) Small talk grounding (weather)
-      6) Mood-based default
+    original return structure.
     """
     text = (user_message or "").lower().strip()
     last_bot = (last_bot_message or "").lower()
+    sid = sid or "anon"
 
     # 1) Continue any active exercise first
     if sid in EXERCISE_STATE:
@@ -205,11 +196,10 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
             _CONVO_STATE[sid] = {"stage": "free_chat"}
             return {"message": "No worries 😊 We can just talk about whatever you like.", "reason": "Respecting choice.", "follow_up": None}
 
-    # 4) Progressive 'talk or calming' invite and branching (gentle state handled separately from exercises)
+    # 4) Progressive 'talk or calming' invite and branching
     state = _CONVO_STATE.get(sid, {"stage": "start"})
     if state["stage"] == "start":
         _CONVO_STATE[sid] = {"stage": "choice"}
-        # Keep follow_up None to reduce repetition; the question is clear in the message itself.
         return {
             "message": "Would you like to talk about it, or try something calming?",
             "reason": "Gradual choices reduce cognitive load.",
@@ -231,7 +221,7 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
                 "reason": "Offer techniques only after consent.",
                 "follow_up": None
             }
-        # If user answered something else, fall through to default mood reply (below)
+        # otherwise fall through
 
     if state["stage"] == "pick_ex":
         picked = _picked_exercise(text)
@@ -244,9 +234,8 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
         if _is_decline(text):
             _CONVO_STATE[sid] = {"stage": "free_chat"}
             return {"message": "No problem. We can just chat. What would you like to share?", "reason": "Respecting choice.", "follow_up": None}
-        # Otherwise, continue to default
 
-    # 5) Small talk: weather reflection (kept from your original)
+    # 5) Small talk: weather reflection
     weather_words = ["weather", "sunny", "rain", "rainy", "cloud", "cloudy", "hot", "cold", "snow", "wind", "storm", "windy"]
     if any(w in text for w in weather_words):
         if "sun" in text or "sunny" in text:
@@ -262,7 +251,7 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
         }
 
     # 6) Default mood response (with suggestion throttling)
-    resp_options = CBT_RESPONSES.get(mood.lower(), CBT_RESPONSES["neutral"])
+    resp_options = CBT_RESPONSES.get((mood or "neutral").lower(), CBT_RESPONSES["neutral"])
     response = random.choice(resp_options).copy()
     response["follow_up"] = _throttle_suggestions(last_bot, sid, response.get("follow_up"))
     return response
