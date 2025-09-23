@@ -6,6 +6,10 @@ EXERCISE_STATE = {}
 # Track sessions that declined suggestions
 DECLINED_SUGGESTIONS = set()
 
+# Lightweight conversation state for progressive choices (separate from exercises)
+# _CONVO_STATE[sid] = {"stage": "start"|"choice"|"pick_ex"|"free_chat"}
+_CONVO_STATE = {}
+
 CBT_RESPONSES = {
     "sad": [
         {
@@ -47,7 +51,8 @@ def _wants_to_talk(text: str) -> bool:
 
 def _is_decline(text: str) -> bool:
     t = (text or "").lower()
-    return any(w in t for w in ["no", "not now", "maybe later", "skip", "pass", "another time", "not really"])
+    return any(w in t for w in ["no", "nope", "nah", "no thank you", "no thanks",
+                                "not now", "not really", "maybe later", "skip", "pass", "another time"])
 
 def _picked_exercise(text: str) -> Optional[str]:
     t = (text or "").lower()
@@ -66,7 +71,7 @@ def _polite_intercepts(text: str):
         }
     if any(w in t for w in ["maybe", "not sure", "perhaps"]):
         return {
-            "message": "No problem at all. We can go at your pace. We can keep talking or try something gentle when you like.",
+            "message": "No problem. We can go at your pace. We can keep talking or try something gentle whenever you like.",
             "reason": "Respect uncertainty; reduce pressure.",
             "follow_up": None
         }
@@ -83,50 +88,69 @@ def _throttle_suggestions(last_bot: str, sid: str, follow_up: Optional[str]) -> 
     return follow_up
 
 # -----------------------------
-# Exercise flows
+# Exercise flows (fixed steppers)
 # -----------------------------
 
 # Grounding
 def start_grounding(sid):
     EXERCISE_STATE[sid] = {"exercise": "grounding", "step": 1}
-    return {"message": "Let us start grounding 🌱. Can you name 5 things you see?", "reason": "Shift focus to present.", "follow_up": None}
+    return {"message": "Let us do 5 4 3 2 1. Name 5 things you can see.", "reason": "Shift focus to present.", "follow_up": None}
 
 def continue_grounding(sid):
     prompts = {
-        2: "Great job. Now name 4 things you can touch ✋",
-        3: "Nice work. Now tell me 3 things you can hear 👂",
-        4: "Good job. Next, notice 2 things you can smell 👃",
+        2: "Great. Now 4 things you can touch ✋",
+        3: "Nice. Tell me 3 things you can hear 👂",
+        4: "Good job. Notice 2 things you can smell 👃",
         5: "Almost there. What is 1 thing you can taste 👅"
     }
     step = EXERCISE_STATE[sid]["step"]
+
+    # FIX: after start(step=1), advance to step 2
+    if step == 1:
+        EXERCISE_STATE[sid]["step"] = 2
+        return {"message": prompts[2], "reason": "Progressing grounding.", "follow_up": None}
+
     if step in prompts:
         EXERCISE_STATE[sid]["step"] += 1
         return {"message": prompts[step], "reason": "Progressing grounding.", "follow_up": None}
+
+    # Completed
     EXERCISE_STATE.pop(sid, None)
-    return {"message": "Excellent work 🌟. You completed grounding. How do you feel now?", "reason": "Close grounding.", "follow_up": "If you want, we can try breathing or reframing next."}
+    return {"message": "Excellent work 🌟. You completed grounding. How do you feel now?",
+            "reason": "Close grounding.", "follow_up": "Would you like to keep talking or set a tiny goal for today?"}
 
 # Breathing
 def start_breathing(sid):
     EXERCISE_STATE[sid] = {"exercise": "breathing", "step": 1}
-    return {"message": "Let us practice a breathing exercise 🌬️. First, inhale slowly for 4 seconds 🫁", "reason": "Breathing calms the body.", "follow_up": None}
+    return {"message": "Box breathing. Inhale 4, hold 4, exhale 4, hold 4. Ready to try 3 rounds?",
+            "reason": "Regulates the nervous system.", "follow_up": None}
 
 def continue_breathing(sid):
     prompts = {
         2: "Great. Now hold for 4 seconds.",
-        3: "Good. Now exhale gently for 6 seconds 😮‍💨",
-        4: "If you can, repeat that 2 or 3 times. How do you feel now?"
+        3: "Good. Now exhale gently for 4 seconds 😮‍💨",
+        4: "Nice. Hold for 4. If you can, repeat 2 more rounds. Notice any shift right now?"
     }
     step = EXERCISE_STATE[sid]["step"]
+
+    # FIX: after start(step=1), advance to step 2
+    if step == 1:
+        EXERCISE_STATE[sid]["step"] = 2
+        return {"message": prompts[2], "reason": "Progressing breathing.", "follow_up": None}
+
     if step in prompts:
         EXERCISE_STATE[sid]["step"] += 1
         return {"message": prompts[step], "reason": "Progressing breathing.", "follow_up": None}
+
     EXERCISE_STATE.pop(sid, None)
-    return {"message": "Well done 🌟. You completed the breathing exercise.", "reason": "Close breathing.", "follow_up": "If you want, we can try grounding or reframing next."}
+    return {"message": "Well done 🌟. You completed the breathing exercise.",
+            "reason": "Close breathing.", "follow_up": "Would you like to keep talking or set a tiny goal for today?"}
 
 # Reframing
 def start_reframing(sid):
     EXERCISE_STATE[sid] = {"exercise": "reframing", "step": 1}
-    return {"message": "Let us try a reframing exercise 🪞. What is a difficult thought you have been having?", "reason": "Challenge negative thoughts.", "follow_up": None}
+    return {"message": "Let us try a reframing exercise 🪞. What is a difficult thought you have been having?",
+            "reason": "Challenge negative thoughts.", "follow_up": None}
 
 def continue_reframing(sid):
     prompts = {
@@ -136,18 +160,23 @@ def continue_reframing(sid):
         5: "What is a more balanced way of looking at this?"
     }
     step = EXERCISE_STATE[sid]["step"]
+
+    # FIX: after start(step=1), advance to step 2
+    if step == 1:
+        EXERCISE_STATE[sid]["step"] = 2
+        return {"message": prompts[2], "reason": "Progressing reframing.", "follow_up": None}
+
     if step in prompts:
         EXERCISE_STATE[sid]["step"] += 1
         return {"message": prompts[step], "reason": "Progressing reframing.", "follow_up": None}
+
     EXERCISE_STATE.pop(sid, None)
-    return {"message": "Great work 🌟. You completed the reframing exercise. How do you feel now?", "reason": "Close reframing.", "follow_up": "If you want, we can try grounding or breathing next."}
+    return {"message": "Great work 🌟. You completed the reframing exercise. How do you feel now?",
+            "reason": "Close reframing.", "follow_up": "Would you like to keep talking or set a tiny goal for today?"}
 
 # ---------------------------------
-# Dispatcher (improved, same return)
+# Dispatcher (progressive flow)
 # ---------------------------------
-
-# Lightweight conversation state to gently invite choices; separate from exercises
-_CONVO_STATE = {}  # sid -> {"stage": "start"|"choice"|"pick_ex"|"free_chat"}
 
 def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = "", sid: str = None) -> dict:
     """
@@ -181,8 +210,9 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
     if "reframe" in text or "thought" in text:
         return start_reframing(sid)
 
-    # Handle yes/no after a suggestion in last bot message
-    if text in ["yes", "sure", "okay", "ok", "alright", "lets do it", "let us do it"]:
+    # Yes/OK to previous suggestion, incl “let’s start/let us start”
+    if text in ["yes", "sure", "okay", "ok", "alright", "lets do it", "let us do it",
+                "lets start", "let's start", "let us start"]:
         if "grounding" in last_bot:
             return start_grounding(sid)
         if "breathing" in last_bot:
@@ -190,13 +220,15 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
         if "reframe" in last_bot or "thought" in last_bot:
             return start_reframing(sid)
 
+    # Respect declines to recent suggestions
     if _is_decline(text):
         if any(w in last_bot for w in ["grounding", "breathing", "reframing", "calming"]):
             DECLINED_SUGGESTIONS.add(sid)
             _CONVO_STATE[sid] = {"stage": "free_chat"}
-            return {"message": "No worries 😊 We can just talk about whatever you like.", "reason": "Respecting choice.", "follow_up": None}
+            return {"message": "No worries 😊 We can just talk about whatever you like.",
+                    "reason": "Respecting choice.", "follow_up": None}
 
-    # 4) Progressive 'talk or calming' invite and branching
+    # 4) Progressive “talk or calming” invite and branching
     state = _CONVO_STATE.get(sid, {"stage": "start"})
     if state["stage"] == "start":
         _CONVO_STATE[sid] = {"stage": "choice"}
@@ -217,7 +249,7 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
         if "calming" in text:
             _CONVO_STATE[sid] = {"stage": "pick_ex"}
             return {
-                "message": "Okay. Which one feels right: grounding, breathing, or reframing?",
+                "message": "Okay. Which one feels right?",
                 "reason": "Offer techniques only after consent.",
                 "follow_up": None
             }
@@ -233,7 +265,8 @@ def get_cbt_response(mood: str, user_message: str = "", last_bot_message: str = 
             return start_reframing(sid)
         if _is_decline(text):
             _CONVO_STATE[sid] = {"stage": "free_chat"}
-            return {"message": "No problem. We can just chat. What would you like to share?", "reason": "Respecting choice.", "follow_up": None}
+            return {"message": "No problem. We can just chat. What would you like to share?",
+                    "reason": "Respecting choice.", "follow_up": None}
 
     # 5) Small talk: weather reflection
     weather_words = ["weather", "sunny", "rain", "rainy", "cloud", "cloudy", "hot", "cold", "snow", "wind", "storm", "windy"]
