@@ -33,6 +33,24 @@
       0%, 80%, 100% { opacity: 0.4; }
       40% { opacity: 1; }
     }
+
+    /* Small, subtle disclaimer text */
+    .disclaimer {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #555;
+      margin: 4px 0 0;
+    }
+    .footer-note {
+      padding: 10px;
+      background: #fff;
+      border-top: 1px solid rgba(0,0,0,.06);
+    }
+    .footer-note small {
+      display: block;
+      font-size: 12px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -44,7 +62,8 @@
         </div>
         <div class="title">
           <h1>CareBear Chatbot</h1>
-          <p>I’m here to help with your mental health</p>
+          <!-- Updated tagline with clear disclosure -->
+          <p class="disclaimer"><strong>Note:</strong> CareBear is an AI companion, not a licensed therapist or medical professional. It cannot provide medical advice.</p>
         </div>
       </header>
 
@@ -56,6 +75,11 @@
         <button id="btnStart" type="button">Start Session</button>
         <button id="btnGoal" type="button">Set Goal</button>
         <button id="btnSummary" type="button">Summary</button>
+      </div>
+
+      <!-- Small persistent footer reminder -->
+      <div class="footer-note" role="note" aria-label="Important disclaimer">
+        <small>CareBear is an AI companion for support and education. It is not a substitute for professional care. If you need medical or mental health advice, please consult a qualified professional.</small>
       </div>
 
       <form id="chat" class="composer" autocomplete="off">
@@ -75,8 +99,8 @@
     const moodEl = document.getElementById('mood');
     const sendBtn = document.getElementById('send');
 
-    // Optional starter bubble
-    addBubble('bot', "Hi there! 🧡 How are you feeling today?");
+    // Optional starter bubble with disclosure
+    addBubble('bot', "Hello! 🧡 I am CareBear, your AI companion. I am not a licensed therapist and cannot provide medical advice, but I can listen and support you. How are you feeling today?");
 
     function addBubble(role, text){
       const b = document.createElement('div');
@@ -142,6 +166,7 @@
         body: JSON.stringify({ tone: tone || "friendly", memory_opt_in: memory })
       });
       const data = await res.json();
+      // Keep existing behavior, just show whatever backend sends
       alert(data.disclosure);
     });
 
